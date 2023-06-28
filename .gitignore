@@ -1,0 +1,12 @@
+.DS_Store
+/build*/
+*.cmake
+*.so
+.vscode
+Makefile.in
+*.pyc
+*.vtk
+*.log
+*.html
+install
+Release
