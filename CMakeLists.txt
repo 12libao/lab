@@ -24,11 +24,18 @@ include_directories(include)
 # Create the main executable
 # add_executable(run src/main.cpp)
 # add_executable(run src/lobpcg.cpp)
-add_executable(run src/dsygvx_lapack.cpp)
+# add_executable(run src/dsygvx_lapack.cpp)
+add_executable(run src/inverse_lapack.cpp)
 
 # Link the required libraries
-# target_link_libraries(run PUBLIC MPI::MPI_CXX OpenMP::OpenMP_CXX Kokkos::kokkos Kokkos::kokkoskernels)
-target_link_libraries(run PUBLIC LAPACK::LAPACK)
+target_link_libraries(run 
+    PUBLIC 
+        # MPI::MPI_CXX 
+        # OpenMP::OpenMP_CXX 
+        Kokkos::kokkos 
+        Kokkos::kokkoskernels
+        LAPACK::LAPACK)
+# target_link_libraries(run PUBLIC LAPACK::LAPACK)
 
 # ---- Different Modes ----
 

@@ -50,4 +50,51 @@ void printLineStatus(int lineNumber, bool passed) {
   printf("\033[0m\n");
 }
 
+// /*
+//  * Fill a nxn matrix with random values between min and max
+//  *
+//  * Input:
+//  *   T A: nxn matrix       - row major
+//  *   T min: minimum value  - default 0.0
+//  *   T max: maximum value  - default 1.0
+//  */
+template <typename T, int N>
+void randFill(std::array<std::array<T, N>, N>& A, T min = -1.0, T max = 1.0) {
+  static std::random_device rd;   // only need to initialize it once
+  static std::mt19937 mte(rd());  // this is a relative big object to create
+
+  std::uniform_real_distribution<T> dist(min, max);
+
+  for (int i = 0; i < N; ++i) {
+    std::generate(A[i].begin(), A[i].end(), [&]() { return dist(mte); });
+  }
+}
+
+template <typename container>
+void printMat(const char* name, container& A, int N=5) {
+  printf("Matrix: \033[32m%s\033[0m\n", name);
+  for (int i = 0; i < N; ++i) {
+    printf("  |");
+    for (int j = 0; j < N; ++j) {
+        printf("%9.5f ", A(i, j));
+    }
+    printf("|\n");
+  }
+  printf("\n");
+}
+
+// template <typename Container>
+// void printMat(const char* name, Container& A, int N=5) {
+//   printf("Matrix: \033[32m%s\033[0m\n", name);
+//   for (auto it_row = A.begin(); it_row != A.end(); ++it_row) {
+//     printf("  |");
+//     for (auto it_col = it_row->begin(); it_col != it_row->end(); ++it_col) {
+//         printf("%9.5f ", *it_col);
+//     }
+//     printf("|\n");
+//   }
+//   printf("\n");
+// }
+
+
 #endif  // TOOLS_H

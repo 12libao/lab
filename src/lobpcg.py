@@ -139,16 +139,12 @@ if __name__ == "__main__":
     # A = rand_symm_mat(n=n, eig_low=2, eig_high=10, nrepeat=1)
     # B = rand_symm_mat(n=n, eig_low=1, eig_high=2, nrepeat=1)
     A = np.random.rand(n, n)
-    A = A.T @ A
     A = A + A.T
-    A = A / np.linalg.norm(A)
-    A = A + 0.5 * np.diag(np.arange(1, n + 1))
+    A = A + n * np.eye(n)
     
     B = np.random.rand(n, n)
-    B = B.T @ B
     B = B + B.T
-    B = B / np.linalg.norm(B)
-    B = B + 0.1*np.diag(np.arange(1, n + 1))
+    B = B + n * np.eye(n)
     
     # A = diags([1, 10, 1], [-1, 0, 1], shape=(n, n)).toarray()
     # A = diags(np.arange(2, n + 2), 0, shape=(n, n)).toarray()
@@ -175,7 +171,7 @@ if __name__ == "__main__":
     t3 = end - start
 
     start = time.time()
-    lam4, vec4 = eigsh(A, k=m, M=B, sigma=1.0, which="LM")
+    lam4, vec4 = eigsh(A, k=m, M=B, sigma=0.1, which="LM")
     end = time.time()
     t4 = end - start
 
