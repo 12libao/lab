@@ -1,7 +1,10 @@
-#ifndef LAPACKAGE_H
-#define LAPACKAGE_H
+#ifndef LAPACKAGE_HPP
+#define LAPACKAGE_HPP
+
+#include <lapacke.h>
 
 #include <array>
+#include <cstdio>
 
 // intialize a struct to hold the eigenvalues and eigenvectors
 template <typename T, std::size_t N, std::size_t M>
@@ -27,4 +30,4 @@ EigenPair<T, N, M> dsygvx(const std::array<T, N * N>& A,
 */
 void inverse(double* A, int N);
 
-#endif  // LAPACKAGE_H
+#endif  // LAPACKAGE_HPP

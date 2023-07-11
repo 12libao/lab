@@ -12,7 +12,7 @@
 // include openmp
 #include <omp.h>
 // include lobpcg
-#include "lobpcg.h"
+#include "lobpcg.hpp"
 
 int main(int argc, char* argv[]) {
   // initialize kokkos

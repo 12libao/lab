@@ -1,5 +1,5 @@
-#ifndef TOOLS_H
-#define TOOLS_H
+#ifndef TOOLS_HPP
+#define TOOLS_HPP
 
 // Macro to print the line number with pass status
 #define check() printLineStatus(__LINE__, true)
@@ -97,4 +97,4 @@ void printMat(const char* name, container& A, int N=5) {
 // }
 
 
-#endif  // TOOLS_H
+#endif  // TOOLS_HPP

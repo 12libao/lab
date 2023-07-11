@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Find the required packages
-find_package(LAPACK REQUIRED)
+# find_package(LAPACK REQUIRED)
 find_package(MPI REQUIRED)
 find_package(OpenMP REQUIRED)
 find_package(Kokkos REQUIRED)
@@ -21,11 +21,19 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # Set the include directories
 include_directories(include)
 
-# Create the main executable
-# add_executable(run src/main.cpp)
-# add_executable(run src/lobpcg.cpp)
-# add_executable(run src/dsygvx_lapack.cpp)
-add_executable(run src/inverse_lapack.cpp)
+# Add the library target
+add_library(lapackage SHARED src/lapackage.cpp)
+target_link_libraries(lapackage 
+    PUBLIC 
+        Kokkos::kokkos 
+        Kokkos::kokkoskernels 
+        LAPACK)
+
+# Add the main executable
+add_executable(run 
+    # src/lapackage.cpp
+    src/lobpcg.cpp
+    )
 
 # Link the required libraries
 target_link_libraries(run 
@@ -34,7 +42,8 @@ target_link_libraries(run
         # OpenMP::OpenMP_CXX 
         Kokkos::kokkos 
         Kokkos::kokkoskernels
-        LAPACK::LAPACK)
+        lapackage
+    )
 # target_link_libraries(run PUBLIC LAPACK::LAPACK)
 
 # ---- Different Modes ----

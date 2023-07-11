@@ -1,6 +1,8 @@
 // #include <mpi.h>  // include MPI
 // #include <omp.h>  // include openmp
 
+// #include <lapacke.h>
+
 #include <KokkosBlas1_axpby.hpp>  // include kokkoskernels
 #include <KokkosBlas1_mult.hpp>
 #include <KokkosBlas1_reciprocal.hpp>
@@ -16,8 +18,8 @@
 #include <random>
 #include <vector>
 
-#include "lapackage.h"
-#include "utility.h"
+#include "lapackage.hpp"
+#include "utility.hpp"
 
 #ifdef KOKKOS_ENABLE_CUDA
 #define MemSpace Kokkos::CudaSpace
@@ -166,6 +168,19 @@ using View2D = Kokkos::View<T**, Layout, ExecSpace>;
 //   return std::make_pair(lambda_, Y);
 // }
 
+// void inverse(double* A, int N) {
+//   int* IPIV = new int[N];
+//   int LWORK = N * N;
+//   double* WORK = new double[LWORK];
+//   int INFO;
+
+//   dgetrf_(&N, &N, A, &N, IPIV, &INFO);
+//   dgetri_(&N, A, &N, IPIV, WORK, &LWORK, &INFO);
+
+//   delete[] IPIV;
+//   delete[] WORK;
+// }
+
 int main() {
   typedef double T;
   int n = 10;
@@ -179,7 +194,7 @@ int main() {
     View2D<T> B("B", n, n);
     View2D<T> I("W", n, n);
     View2D<T> M("M", n, n);
-    View2D<T> X("X", n, m);
+    View2D<T> X("X", n, n);
 
     Kokkos::Random_XorShift64_Pool<> rand_pool(1234);
     Kokkos::fill_random(A, rand_pool, -1.0, 1.0);
@@ -198,6 +213,16 @@ int main() {
             }
           }
         });
+
+    Kokkos::deep_copy(M, A);
+    T* Mptr = M.data();
+    inverse(Mptr, n);  // M = A^{-1}
+    printMat<View2D<T>>("M", M);
+    printMat<View2D<T>>("A", A);
+    // X = np.dot(M, A)
+    KokkosBlas::gemm("N", "N", 1.0, M, A, 0.0, X);
+
+    printMat<View2D<T>>("X", X);
 
     // // Make A and B symmetric
     // KokkosBlas::gemm("N", "T", 1.0, A, A, 0.0, A);
