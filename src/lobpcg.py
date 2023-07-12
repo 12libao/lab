@@ -27,9 +27,8 @@ def rand_symm_mat(n=10, eig_low=0.1, eig_high=100.0, nrepeat=1):
     return np.dot(Q, np.dot(np.diag(lam), Q.T))  # Compute A = Q*Lambda*Q^{T}
 
 
-def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=200):
+def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     N, m = X.shape
-    maxiters = 200
 
     if B is None:
         B = np.eye(N)
@@ -48,7 +47,7 @@ def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=200):
     # ic(A)
     # ic(X)
     # ic(B)
-    while k < maxiters and residual > tol:
+    while k < maxiter and residual > tol:
         AX = np.dot(A, X)
         BX = np.dot(B, X)
         # ic(AX)
@@ -116,13 +115,16 @@ def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=200):
             
         # ic(Yp)
 
-        X = np.dot(W, Yw) + np.dot(X, Yx) + np.dot(P, Yp)
+        # X = np.dot(W, Yw) + np.dot(X, Yx) + np.dot(P, Yp)
         P = np.dot(W, Yw) + np.dot(P, Yp)
+        # ic(X)
+        # ic(np.dot(X, Yx))
+        X = P + np.dot(X, Yx)
         
         # ic(X)
         # ic(P)
 
-        residual = np.linalg.norm(R) / np.linalg.norm(A)
+        residual = np.linalg.norm(R)
         ic(k, residual)
 
         k += 1
@@ -133,8 +135,9 @@ def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=200):
 
 
 if __name__ == "__main__":
-    n = 1000  # Size of the matrix
-    m = 5  # Number of desired eigenpairs
+    n = 10000  # Size of the matrix
+    m = 10  # Number of desired eigenpairs
+    np.random.seed(0)
 
     # A = rand_symm_mat(n=n, eig_low=2, eig_high=10, nrepeat=1)
     # B = rand_symm_mat(n=n, eig_low=1, eig_high=2, nrepeat=1)
@@ -151,7 +154,8 @@ if __name__ == "__main__":
     # B = np.eye(n)
     
     M = np.linalg.inv(A)
-    X = np.random.rand(n, m)
+    # X = np.random.rand(n, m)
+    X = np.eye(n, m)
     
     # Call the lobpcg function
     start = time.time()
@@ -166,7 +170,7 @@ if __name__ == "__main__":
     loc2 = np.argsort(lam2)[0]
 
     start = time.time()
-    lam3, vec3 = linalg.lobpcg(A, X, B=B, M=M, largest=False, tol=1e-8, maxiter=200)
+    lam3, vec3 = linalg.lobpcg(A, X, B=B, M=M, largest=False, tol=1e-8, maxiter=500)
     end = time.time()
     t3 = end - start
 
@@ -191,7 +195,3 @@ if __name__ == "__main__":
     print("Time elapsed (scipy::eigh):     {}".format(t2))
     print("Time elapsed (scipy::lobpcg):   {}".format(t3))
     print("Time elapsed (scipy::eigsh):    {}".format(t4))
-    
-    A = np.diag(np.arange(1, 11))
-    B = np.eye(10)
-    

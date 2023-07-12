@@ -19,7 +19,7 @@
 #include <vector>
 
 #include "lapackage.hpp"
-#include "utility.hpp"
+#include "utils.hpp"
 
 #ifdef KOKKOS_ENABLE_CUDA
 #define MemSpace Kokkos::CudaSpace
@@ -216,13 +216,13 @@ int main() {
 
     Kokkos::deep_copy(M, A);
     T* Mptr = M.data();
-    inverse(Mptr, n);  // M = A^{-1}
-    printMat<View2D<T>>("M", M);
-    printMat<View2D<T>>("A", A);
+    lapackage::inverse(Mptr, n);  // M = A^{-1}
+    // printMat<View2D<T>>("M", M);
+    // printMat<View2D<T>>("A", A);
     // X = np.dot(M, A)
     KokkosBlas::gemm("N", "N", 1.0, M, A, 0.0, X);
 
-    printMat<View2D<T>>("X", X);
+    // printMat<View2D<T>>("X", X);
 
     // // Make A and B symmetric
     // KokkosBlas::gemm("N", "T", 1.0, A, A, 0.0, A);
@@ -236,10 +236,10 @@ int main() {
 
     // M = inverse of A
 
-    printMat<View2D<T>>("A", A);
-    printMat<View2D<T>>("B", B);
-    printMat<View2D<T>>("M", M);
-    printMat<View2D<T>>("X", X);
+    // printMat<View2D<T>>("A", A);
+    // printMat<View2D<T>>("B", B);
+    // printMat<View2D<T>>("M", M);
+    // printMat<View2D<T>>("X", X);
   }
   Kokkos::finalize();
 }

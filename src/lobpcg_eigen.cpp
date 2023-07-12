@@ -4,7 +4,7 @@
 #include <iostream>
 #include <random>
 
-#include "utility.hpp"
+#include "utility.h"
 
 using namespace Eigen;
 

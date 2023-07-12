@@ -21,28 +21,31 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # Set the include directories
 include_directories(include)
 
-# Add the library target
-add_library(lapackage SHARED src/lapackage.cpp)
-target_link_libraries(lapackage 
-    PUBLIC 
-        Kokkos::kokkos 
-        Kokkos::kokkoskernels 
-        LAPACK)
+
+# # Add the library target
+# add_library(lapackage SHARED src/lapackage.cpp)
+# target_link_libraries(lapackage 
+#     PUBLIC 
+#         Kokkos::kokkos 
+#         Kokkos::kokkoskernels 
+#         LAPACK)
 
 # Add the main executable
 add_executable(run 
     # src/lapackage.cpp
-    src/lobpcg.cpp
+    # src/lobpcg.cpp
+    src/main.cpp
     )
 
 # Link the required libraries
 target_link_libraries(run 
     PUBLIC 
-        # MPI::MPI_CXX 
-        # OpenMP::OpenMP_CXX 
+        MPI::MPI_CXX 
+        OpenMP::OpenMP_CXX 
         Kokkos::kokkos 
         Kokkos::kokkoskernels
-        lapackage
+        # lapackage
+        # LAPACK
     )
 # target_link_libraries(run PUBLIC LAPACK::LAPACK)
 
@@ -80,8 +83,12 @@ if(CMAKE_BUILD_TYPE MATCHES Test)
     FetchContent_MakeAvailable(googletest)
     
     # Add the test executable and link with Google Test
-    add_executable(runUnitTest test/test1.cpp)
-    target_link_libraries(runUnitTest gtest_main MPI::MPI_CXX OpenMP::OpenMP_CXX Kokkos::kokkos Kokkos::kokkoskernels)
+    add_executable(runUnitTest 
+        # test/test_lapackage.cpp
+        test/test_lobpcg.cpp
+        )
+
+    target_link_libraries(runUnitTest gtest_main MPI::MPI_CXX OpenMP::OpenMP_CXX Kokkos::kokkos Kokkos::kokkoskernels LAPACK)
     
     # Optionally, you can define a custom test target to run the tests easily
     add_custom_target(run-tests
