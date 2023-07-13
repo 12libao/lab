@@ -65,7 +65,8 @@ def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=500):
         # Compute residuals.
         R = BX - AX * mu
         # ic(R)
-        TR = M @ R
+        # TR = M @ R
+        TR = R
         # ic(TR)
         # W = qr(TR, mode="economic")[0]
         W = TR
@@ -135,7 +136,7 @@ def lobpcg(A, X, B=None, M=None, tol=1e-8, maxiter=500):
 
 
 if __name__ == "__main__":
-    n = 10000  # Size of the matrix
+    n = 1000  # Size of the matrix
     m = 10  # Number of desired eigenpairs
     np.random.seed(0)
 
@@ -152,10 +153,14 @@ if __name__ == "__main__":
     # A = diags([1, 10, 1], [-1, 0, 1], shape=(n, n)).toarray()
     # A = diags(np.arange(2, n + 2), 0, shape=(n, n)).toarray()
     # B = np.eye(n)
-    
+    start = time.time()
     M = np.linalg.inv(A)
-    # X = np.random.rand(n, m)
-    X = np.eye(n, m)
+    end = time.time()
+    t = end - start
+    ic(t)
+    # M = A - 500 * np.eye(n)
+    X = np.random.rand(n, m)
+    # X = np.eye(n, m)
     
     # Call the lobpcg function
     start = time.time()
@@ -163,35 +168,35 @@ if __name__ == "__main__":
     end = time.time()
     t1 = end - start
 
-    start = time.time()
-    lam2, vec2 = eigh(A, B)
-    end = time.time()
-    t2 = end - start
-    loc2 = np.argsort(lam2)[0]
+    # start = time.time()
+    # lam2, vec2 = eigh(A, B)
+    # end = time.time()
+    # t2 = end - start
+    # loc2 = np.argsort(lam2)[0]
 
     start = time.time()
     lam3, vec3 = linalg.lobpcg(A, X, B=B, M=M, largest=False, tol=1e-8, maxiter=500)
     end = time.time()
     t3 = end - start
 
-    start = time.time()
-    lam4, vec4 = eigsh(A, k=m, M=B, sigma=0.1, which="LM")
-    end = time.time()
-    t4 = end - start
+    # start = time.time()
+    # lam4, vec4 = eigsh(A, k=m, M=B, sigma=0.1, which="LM")
+    # end = time.time()
+    # t4 = end - start
 
     # Print the resulting eigenvalues and eigenvectors
     print()
     print("Eigenvalues (my::lobpcg):      ", lam1)
-    print("Eigenvalues (scipy::eigh):     ", np.sort(lam2)[:m])
+    # print("Eigenvalues (scipy::eigh):     ", np.sort(lam2)[:m])
     print("Eigenvalues (scipy::lobpcg):   ", lam3)
-    print("Eigenvalues (scipy::eigsh):    ", lam4)
+    # print("Eigenvalues (scipy::eigsh):    ", lam4)
     print()
     print("Eigenvectors (my::lobpcg):     ", vec1[:m, 0])
-    print("Eigenvectors (scipy::eigh):    ", vec2[:m, loc2])
+    # print("Eigenvectors (scipy::eigh):    ", vec2[:m, loc2])
     print("Eigenvectors (scipy::lobpcg):  ", vec3[:m, 0])
-    print("Eigenvectors (scipy::eigsh):   ", vec4[:m, 0])
+    # print("Eigenvectors (scipy::eigsh):   ", vec4[:m, 0])
     print()
     print("Time elapsed (my::lobpcg):      {}".format(t1))
-    print("Time elapsed (scipy::eigh):     {}".format(t2))
+    # print("Time elapsed (scipy::eigh):     {}".format(t2))
     print("Time elapsed (scipy::lobpcg):   {}".format(t3))
-    print("Time elapsed (scipy::eigsh):    {}".format(t4))
+    # print("Time elapsed (scipy::eigsh):    {}".format(t4))
