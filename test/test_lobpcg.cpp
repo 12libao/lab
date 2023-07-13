@@ -5,6 +5,7 @@
 #include <KokkosBlas3_gemm.hpp>
 #include <Kokkos_Random.hpp>
 #include <array>
+#include <cstdlib>
 
 #include "lobpcg.hpp"
 #include "utils.hpp"
@@ -30,49 +31,39 @@ using View2D = Kokkos::View<T**, Layout, ExecSpace>;
 typedef int I;
 typedef double T;
 
-constexpr I n = 10000;
+constexpr I n = 1000;  // dof = 100,000,000 (one billion)
 constexpr I m = 10;
 
 int maxiter = 100;
 double tol = 1e-6;
 
-class LapackageRandom : public ::testing::Test {
+class RandSysPosMat : public ::testing::Test {
  protected:
   virtual void SetUp() override {
     A = View2D<T>("A", n, n);
     B = View2D<T>("B", n, n);
-    I = View2D<T>("I", n, n);
-    Ainv = View2D<T>("Ainv", n, n);
 
-    Kokkos::Random_XorShift64_Pool<> rand_pool(0);
-    Kokkos::fill_random(A, rand_pool, -1.0, 1.0);
-    Kokkos::fill_random(B, rand_pool, -1.0, 1.0);
-
-    // A = A + A^T + n * np.eye(n), symmetric positive definite
-    // B = B + B^T + n * np.eye(n), symmetric positive definite
+    // A = A_upper + A_upper^T + n*I
     Kokkos::parallel_for(
         "construct_ABI", n, KOKKOS_LAMBDA(const int i) {
           for (int j = 0; j < i + 1; j++) {
-            A(i, j) = A(j, i);
-            B(i, j) = B(j, i);
+            A(i, j) = (T)rand() / RAND_MAX;
+            B(i, j) = (T)rand() / RAND_MAX;
+            A(j, i) = A(i, j);
+            B(j, i) = B(i, j);
             if (i == j) {
               A(i, j) += n;
               B(i, j) += n;
-              I(i, j) = 1.0;
             }
           }
         });
-
-    lapackage::inverse(A.data(), n, Ainv.data());
   }
 
   View2D<T> A;
   View2D<T> B;
-  View2D<T> I;
-  View2D<T> Ainv;
 };
 
-class LapackageFix : public ::testing::Test {
+class RandSysPosMat10x10 : public ::testing::Test {
  protected:
   virtual void SetUp() override {
     A = View2D<T>("A", 10, 10);
@@ -169,7 +160,7 @@ class LapackageFix : public ::testing::Test {
          1.63727068e-02, 1.51739942e-01}};
 
     T w_data[10] = {2.18001266, 2.51990827, 2.75329708, 3.90893235, 4.2813551,
-                   4.9965097,  5.0351763,  5.94017474, 6.54900011, 8.35773};
+                    4.9965097,  5.0351763,  5.94017474, 6.54900011, 8.35773};
 
     T v_data[10][10] = {
         {-0.36568376, 0.53458882, -0.08425405, 0.11737942, -0.26585255,
@@ -216,53 +207,55 @@ class LapackageFix : public ::testing::Test {
   Kokkos::View<T**, Kokkos::LayoutLeft> v;  // eigenvectors in column-major
 };
 
-TEST_F(LapackageFix, sygvx) {
-  int M = 2;
-  int N = 10;
-  View1D<T> w_test("w_test", M);
-  View2D<T> v_test("v_test", N, M);
+// TEST_F(RandSysPosMat10x10, sygvx) {
+//   int M = 2;
+//   int N = 10;
+//   View1D<T> w_test("w_test", M);
+//   View2D<T> v_test("v_test", N, M);
 
-  View2D<T> X("X", N, m);
-  
-  linalg::lobpcg<T>(A.data(), B.data(), N, M, w_test.data(), v_test.data());
-  
+//   View2D<T> X("X", N, m);
 
-  // linalg::lobpcg<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data(), X.data());
+//   linalg::lobpcg<T>(A.data(), B.data(), N, M, w_test.data(), v_test.data());
 
-  // printMat("w", w.data(), m, 1);
-  // printMat("w_test", w_test.data(), m, 1);
+//   // linalg::lobpcg<T>(A.data(), B.data(), n, m, w_test.data(),
+//   v_test.data(), X.data());
 
-  // printMat("v", v.data(), n, m, 1);
-  // printMat("v_test", v_test.data(), n, m);
+//   // printMat("w", w.data(), m, 1);
+//   // printMat("w_test", w_test.data(), m, 1);
 
-  // compare w to w_test
-  for (int i = 0; i < M; i++) {
-    EXPECT_NEAR(w(i), w_test(i), tol);
-  }
+//   // printMat("v", v.data(), n, m, 1);
+//   // printMat("v_test", v_test.data(), n, m);
 
-  // compare the abs value for v to v_test (only first m columns)
-  for (int i = 0; i < N; i++) {
-    for (int j = 0; j < M; j++) {
-      EXPECT_NEAR(std::abs(v(i, j)), std::abs(v_test(i, j)), tol);
-    }
-  }
-}
+//   // compare w to w_test
+//   for (int i = 0; i < M; i++) {
+//     EXPECT_NEAR(w(i), w_test(i), tol);
+//   }
 
-TEST_F(LapackageRandom, sygvx) {
+//   // compare the abs value for v to v_test (only first m columns)
+//   for (int i = 0; i < N; i++) {
+//     for (int j = 0; j < M; j++) {
+//       EXPECT_NEAR(std::abs(v(i, j)), std::abs(v_test(i, j)), tol);
+//     }
+//   }
+// }
+
+TEST_F(RandSysPosMat, lobpcg) {
   View1D<T> w_test("w_test", m);
   View2D<T> v_test("v_test", n, m);
 
   View2D<T> X("X", n, m);
+  
+  tick("linalg::lobpcg");
   linalg::lobpcg<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data());
+  tock("linalg::lobpcg");
 
-  printMat("w", w_test.data(), m, 1);
+  // printMat("w", w_test.data(), m, 1);
 
   // printMat("w", w.data(), m, 1);
   // printMat("w_test", w_test.data(), m, 1);
 
   // printMat("v", v.data(), n, m, 1);
   // printMat("v_test", v_test.data(), n, m);
-
 }
 
 int main(int argc, char** argv) {

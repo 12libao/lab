@@ -86,6 +86,18 @@ void printMat(const char* name, T* A, int N = 5, int M = 5, int layout = 0) {
   printf("\n");
 }
 
+template <typename container>
+void printMat(const char* name, container& A, int N = 5, int M = 5) {
+  printf("Matrix: \033[32m%s\033[0m\n", name);
+  for (int i = 0; i < N; ++i) {
+    printf("  |");
+    for (int j = 0; j < M; ++j) {
+      printf("%8.5f ", A(i, j) );
+    }
+    printf("|\n");
+  }
+}
+
 // template <typename Container>
 // void printMat(const char* name, Container& A, int N=5) {
 //   printf("Matrix: \033[32m%s\033[0m\n", name);
