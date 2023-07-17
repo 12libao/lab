@@ -541,7 +541,8 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     N, m0 = X.shape
     m00 = m0
     # Basis blocks are padded by about 10\% of the number of desired eigenpairs
-    m1 = int(np.ceil(m0 * 0.1))
+    m1 = int(np.ceil(m0 * 0.3))
+    
     m = m0 + m1
     ic(m0, m1)
 
@@ -578,7 +579,11 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     # XBX = np.zeros((m, m))
     SAS = np.zeros((3, 3))
     SBS = np.zeros((3, 3))
+    eigenvalues = np.zeros(m)
     res_m0 = m0
+    non_convergence_indx = np.arange(m)
+    # ic(non_convergence_indx)
+
     for k in range(maxiter):
         W = R
         # if k > 0:
@@ -588,7 +593,13 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
 
         # W = W / np.linalg.norm(W)
 
-        for i in range(counter, m):
+        # use hard lock technique to lock the converged eigenpairs
+        # counter: only update the un-converged eigenpairs
+        # for all index in array non_convergence_indx:
+        for i in non_convergence_indx:
+            # for i in range(counter, m):
+            # for i in range(m):
+            # ic(i)
             # if k > 0:
             #     # S = np.vstack((X[:, i], W[:, i], P[:, i])).T
             #     AP = A @ P[:, i]
@@ -664,18 +675,15 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
 
             # ic(SAS)
             # ic(SBS)
+            if k > 0:
+                S = np.vstack((X[:, i], W[:, i], P[:, i])).T
+            else:
+                S = np.vstack((X[:, i], W[:, i])).T
 
-            S = np.vstack((X[:, i], W[:, i], P[:, i])).T
             SAS = S.T @ A @ S
             SBS = S.T @ B @ S
-            # ic(SAS)
-            # ic(SBS)
-            if k > 0:
-                O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
-            else:
-                O, C = eigh(SAS[:2, :2], SBS[:2, :2], subset_by_index=[0, 0])
-            # O = np.diag(O)
-            # ic(O)
+
+            O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
 
             if k > 0:
                 p = C[1, 0] * W[:, i] + C[2, 0] * P[:, i]
@@ -687,51 +695,59 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
             X[:, i] = x
             P[:, i] = p
 
+        # XAX = X[:, non_convergence_indx].T @ A @ X[:, non_convergence_indx]
+        # XBX = X[:, non_convergence_indx].T @ B @ X[:, non_convergence_indx]
+        # O, C = eigh(XAX, XBX)
+        # eigenvalues[non_convergence_indx] = O
+        # X[:, non_convergence_indx] = X[:, non_convergence_indx] @ C
+        # R[:, non_convergence_indx] = A @ X[:, non_convergence_indx] - B @ X[
+        #     :, non_convergence_indx
+        # ] @ np.diag(O)
+
+        # XAX = X[:, counter:m].T @ A @ X[:, counter:m]
+        # XBX = X[:, counter:m].T @ B @ X[:, counter:m]
+        # O, C = eigh(XAX, XBX)
+        # eigenvalues[counter:] = O
+        # X[:, counter:m] = X[:, counter:m] @ C
+        # R[:, counter:m] = A @ X[:, counter:m] - B @ X[:, counter:m] @ np.diag(O)
+
         XAX = X.T @ A @ X
         XBX = X.T @ B @ X
         O, C = eigh(XAX, XBX)
-        O = np.diag(O)
+        eigenvalues = O
         X = X @ C
-        R = A @ X - B @ X @ O
+        R = A @ X - B @ X @ np.diag(O)
 
-        # counter = 0
-        # res = 0
-        for i in range(counter, m0):
+        res_max = 0
+        non_convergence_indx = []
+        for i in range(m0):
             residual = np.linalg.norm(R[:, i]) / (
-                (Anorm + Bnorm * O[i, i]) * np.linalg.norm(X[:, i])
+                (Anorm + Bnorm * eigenvalues[i]) * np.linalg.norm(X[:, i])
             )
-            # if i == m0 - 1:
-            #     res = residual
-            if residual < tol:
-                counter += 1
-                break
-            # if residual < 1e-15:
-            #     res_m0 = res_m0 - 1
+            if residual > res_max and i < m0:
+                res_max = residual
+            if residual > tol and i < m0:
+                non_convergence_indx.append(i)
 
-        # ic(counter)
-        i = m0 - 1
-        res = np.linalg.norm(R[:, i]) / (
-                (Anorm + Bnorm * O[i, i]) * np.linalg.norm(X[:, i])
-            )
-        # ic(residual)
-        # residual = np.linalg.norm(R[:, 0])
-        # if residual < tol:
-        #     break
+        counter = m0 - len(non_convergence_indx)
+        ic(k, counter, res_max)
 
-        ic(k, counter, res)
-
-        # if res < tol:
-        #     break
-
-        if counter >= m0:
+        if res_max < tol:
             break
 
-    return np.diag(O[:m0, :m0]), X[:, :m0]
+        for i in range(m0, m):
+            residual = np.linalg.norm(R[:, i]) / (
+                (Anorm + Bnorm * eigenvalues[i]) * np.linalg.norm(X[:, i])
+            )
+            if residual > tol:
+                non_convergence_indx.append(i)
+
+    return eigenvalues[:m0], X[:, :m0]
 
 
 if __name__ == "__main__":
     n = 100  # Size of the matrix
-    m = 30  # Number of desired eigenpairs
+    m = 10  # Number of desired eigenpairs
     np.random.seed(0)
 
     # A = rand_symm_mat(n=n, eig_low=2, eig_high=10, nrepeat=1)
@@ -786,9 +802,9 @@ if __name__ == "__main__":
     print("Eigenvalues (scipy::lobpcg):   ", lam3)
     # print("Eigenvalues (scipy::eigsh):    ", lam4)
     print()
-    print("Eigenvectors (my::lobpcg):     ", vec1[:m, m-1])
-    print("Eigenvectors (scipy::eigh):    ", vec2[:m, m-1])
-    print("Eigenvectors (scipy::lobpcg):  ", vec3[:m, m-1])
+    print("Eigenvectors (my::lobpcg):     ", vec1[:m, m - 1])
+    print("Eigenvectors (scipy::eigh):    ", vec2[:m, m - 1])
+    print("Eigenvectors (scipy::lobpcg):  ", vec3[:m, m - 1])
     # print("Eigenvectors (scipy::eigsh):   ", vec4[:m, 0])
     print()
     print("Time elapsed (my::lobpcg):      {}".format(t1))
