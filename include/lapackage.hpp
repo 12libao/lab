@@ -25,7 +25,7 @@ namespace lapackage {
  *    eigenvalues and eigenvectors are sorted in ascending order
  */
 template <typename T>
-void sygvx(T* A, T* B, int n, int m, T* eigenvalues, T* eigenvectors);
+void sygvx(T* A, T* B, int n, int m, T* eigenvalues, T* eigenvectors, double tol);
 
 /**
  * Computes the inverse of a matrix using LU factorization with partial
@@ -84,7 +84,7 @@ void inverse(T* A, int n, T* Ainv) {
 /* implementation of sygvx() */
 template <typename T>
 void sygvx(double* A, double* B, int n, int m, double* eigenvalues,
-           double* eigenvectors) {
+           double* eigenvectors, double tol=0.0) {
   int itype = 1;        // Ax = ¦ËBx
   char jobz = 'V';      // Compute eigenvalues and eigenvectors
   char range = 'I';     // Compute in il-th through iu-th range
@@ -95,7 +95,7 @@ void sygvx(double* A, double* B, int n, int m, double* eigenvalues,
   T vu = 0;             // Upper bound of eigenvalues not referenced
   int il = 1;           // Index of smallest eigenvalue to compute
   int iu = m;           // Index of largest eigenvalue to compute
-  double abstol = 0.0;  // Absolute tolerance
+  double abstol = tol;  // Absolute tolerance
 
   // Initialize work arrays
   int lwork = 1024;  // Length of work array
