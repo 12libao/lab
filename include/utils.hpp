@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <random>
 
 typedef std::chrono::high_resolution_clock Clock;
@@ -20,6 +21,7 @@ typedef std::chrono::duration<double> Duration;
 
 TimePoint startTime;
 TimePoint endTime;
+std::map<std::string, double> cumulativeTimes;  // Map to store cumulative times
 
 void startTimer(const char* msg) { startTime = Clock::now(); }
 
@@ -30,13 +32,10 @@ double getElapsedTime() {
 
 void reportTimer(const char* msg = "") {
   double elapsed = getElapsedTime();
+  // Add the current elapsed time to the cumulative time for this message
+  cumulativeTimes[std::string(msg)] += elapsed;
   printf("%s: ", msg);
-  // if (elapsed < 1e-6)
-  //   printf("\033[32m%.5f us\033[0m\n", elapsed * 1e6);
-  // else if (elapsed < 1e-3)
-  //   printf("\033[32m%.5f ms\033[0m\n", elapsed * 1e3);
-  // else
-  printf("\033[32m%.8f s\033[0m\n", elapsed);
+  printf("\033[32m%.8f s\033[0m\n", cumulativeTimes[std::string(msg)]);
 }
 
 // Function to print the line number and status
@@ -66,7 +65,7 @@ void randFill(T* A, int N, T min = -1.0, T max = 1.0) {
   std::uniform_real_distribution<T> dist(min, max);
 
   for (int i = 0; i < N; ++i) {
-    std::generate( A + i * N, A + (i + 1) * N, [&]() { return dist(mte); });
+    std::generate(A + i * N, A + (i + 1) * N, [&]() { return dist(mte); });
   }
 }
 
@@ -92,7 +91,7 @@ void printMat(const char* name, container& A, int N = 5, int M = 5) {
   for (int i = 0; i < N; ++i) {
     printf("  |");
     for (int j = 0; j < M; ++j) {
-      printf("%8.5f ", A(i, j) );
+      printf("%8.5f ", A(i, j));
     }
     printf("|\n");
   }
