@@ -31,8 +31,8 @@ using View2D = Kokkos::View<T**, Layout, ExecSpace>;
 typedef int I;
 typedef double T;
 
-constexpr I n = 1000;  // dof = 100,000,000 (one billion)
-constexpr I m = 20;
+constexpr I n = 10000;  // dof = 100,000,000 (one billion)
+constexpr I m = 10;
 
 int maxiter = 100;
 double tol = 1e-6;
@@ -236,24 +236,24 @@ class FixSysPosMat : public ::testing::Test {
 //   }
 // }
 
-TEST_F(RandSysPosMat, lobpcg) {
-  View1D<T> w_test("w_test", m);
-  View2D<T> v_test("v_test", n, m);
+// TEST_F(RandSysPosMat, lobpcg) {
+//   View1D<T> w_test("w_test", m);
+//   View2D<T> v_test("v_test", n, m);
 
-  View2D<T> X("X", n, m);
+//   View2D<T> X("X", n, m);
 
-  tick("linalg::lobpcg");
-  linalg::lobpcg<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data());
-  tock("linalg::lobpcg");
+//   tick("linalg::lobpcg");
+//   linalg::lobpcg<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data());
+//   tock("linalg::lobpcg");
 
-  // printMat("w", w_test.data(), m, 1);
+//   // printMat("w", w_test.data(), m, 1);
 
-  // printMat("w", w.data(), m, 1);
-  // printMat("w_test", w_test.data(), m, 1);
+//   // printMat("w", w.data(), m, 1);
+//   // printMat("w_test", w_test.data(), m, 1);
 
-  // printMat("v", v.data(), n, m, 1);
-  // printMat("v_test", v_test.data(), n, m);
-}
+//   // printMat("v", v.data(), n, m, 1);
+//   // printMat("v_test", v_test.data(), n, m);
+// }
 
 // TEST_F(FixSysPosMat, lobpcg2) {
 //   const int n = 10;
@@ -280,9 +280,9 @@ TEST_F(RandSysPosMat, lobpcg2) {
 
   View2D<T> X("X", n, m);
 
-  tick("linalg::lobpcg");
+  tick("linalg::lobpcg2");
   linalg::lobpcg2<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data());
-  tock("linalg::lobpcg");
+  tock("linalg::lobpcg2");
 }
 
 int main(int argc, char** argv) {

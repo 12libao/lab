@@ -46,60 +46,108 @@ namespace linalg {
 
 template <typename T>
 void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
-            T* Mp = nullptr, double tol = 1e-8, int maxiter = 500) {
+            T* Mp = nullptr, double tol = 1e-8, int maxiter = 500,
+            bool verbose = true) {
   View2D<T> A(Ap, n, n);
-  View2D<T> B(Bp, n, n);
-  View2D<T> X;
+  View2D<T> B;
+  View2D<T> X("X", n, m);
   View2D<T> M;
+  View2D<T> XAX("XAX", m, m);
+  View2D<T> XBX("XBX", m, m);
 
-  if (Xp == nullptr) {
-    X = View2D<T>("X", n, m);
-    Kokkos::parallel_for(
-        "lobpcg::initX",
-        Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n, m}),
-        KOKKOS_LAMBDA(int i, int j) { X(i, j) = (T)rand() / RAND_MAX; });
-  } else {
-    X = View2D<T>(Xp, n, m);
+  View2D<T> AX("AX", n, m);
+  View2D<T> BX("BX", n, m);
+
+  View1D<T> w(wp, m);
+  View2D<T> v("eigenvectors column major", m, m);
+
+  if (m > int(ceil(n * 0.3))) {
+    printf("m is larger than 30%% of m, use Lapack::sygvx instead\n");
+    return;
   }
 
-  // printMat("M", M.data(), n, n);
+  if (Bp == nullptr) {
+    B = View2D<T>("B", n, n);
+    Kokkos::deep_copy(B, 0.0);
+    Kokkos::parallel_for(
+        "lobpcg::setB",
+        Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n, n}),
+        KOKKOS_LAMBDA(int i, int j) { B(i, j) = (i == j) ? 1.0 : 0.0; });
+  } else {
+    B = View2D<T>(Bp, n, n);
+  }
+
+  /* Compute XAX = X.T * A * X, XBX = X.T * B * X */
+  if (Xp == nullptr) {
+    //  X = eye(n, m) -> XAX = A[:m, :m], XBX = B[:m, :m]
+    for (int i = 0; i < m; i++) {
+      for (int j = 0; j < m; j++) {
+        XAX(i, j) = A(i, j);
+        XBX(i, j) = B(i, j);
+      }
+    }
+  } else {
+    X = View2D<T>(Xp, n, m);
+    KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);    // AX = A * X
+    KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);    // BX = B * X
+    KokkosBlas::gemm("T", "N", 1.0, X, AX, 0.0, XAX);  // XAX = X.T * AX
+    KokkosBlas::gemm("T", "N", 1.0, X, BX, 0.0, XBX);  // XBX = X.T * BX
+  }
+
+  /* Solve generalized eigenvalue problem to get initial eigenvectors */
+  lapackage::sygvx<T>(XAX.data(), XBX.data(), m, m, w.data(), v.data());
+
+  /* Compute: AX = A * X, BX = B * X */
+  if (Xp == nullptr) {
+    for (int i = 0; i < m; i++) {
+      for (int j = 0; j < m; j++) {
+        X(i, j) = v(j, i);  // X = eye(n, m) -> X = hstack(v, 0)
+      }
+    }
+
+    auto A_nm = Kokkos::subview(A, Kokkos::ALL(), Kokkos::make_pair(0, m));
+    auto B_nm = Kokkos::subview(B, Kokkos::ALL(), Kokkos::make_pair(0, m));
+    KokkosBlas::gemm("N", "T", 1.0, A_nm, v, 0.0, AX);  // AX = A * v
+    KokkosBlas::gemm("N", "T", 1.0, B_nm, v, 0.0, BX);  // BX = B * v
+  } else {
+    View2D<T> X0("last X", n, m);
+    Kokkos::deep_copy(X0, X);
+    KokkosBlas::gemm("N", "T", 1.0, X, v, 0.0, X);   // X = X * v
+    KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);  // AX = A * X
+    KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);  // BX = B * X
+  }
+
+  /* Compute residual: R = AX - BX * w, A_norm, B_norm */
+  T A_norm = 0.0;
+  T B_norm = 0.0;
+  T X_norm = 0.0;
+  View2D<T> R("residual", n, m);
+  for (int i = 0; i < m; i++) {
+    auto x = Kokkos::subview(X, Kokkos::ALL(), i);
+    auto r = Kokkos::subview(R, Kokkos::ALL(), i);
+    auto Ax = Kokkos::subview(AX, Kokkos::ALL(), i);
+    auto Bx = Kokkos::subview(BX, Kokkos::ALL(), i);
+
+    A_norm += KokkosBlas::nrm2_squared(Ax);  // A_norm += Ax^2
+    B_norm += KokkosBlas::nrm2_squared(Bx);  // B_norm += Bx^2
+    X_norm += KokkosBlas::nrm2_squared(x);   // X_norm += x^2
+
+    KokkosBlas::update(1.0, Ax, -w(i), Bx, 0.0, r);  // r = Ax - Bx * w(i)
+  }
+
+  A_norm = sqrt(A_norm / X_norm);
+  B_norm = sqrt(B_norm / X_norm);
 
   View2D<T> P("P", n, m);
-  View2D<T> R("residual", n, m);
-  View2D<T> BX("BX", n, m);
-  View2D<T> AX("AX", n, m);
   View1D<T> mu("mu", m);
   View2D<T> W("W", n, m);
 
   int k = 0;
   T residual = 1.0;
   while (k < maxiter && residual > tol) {
-    /* AX = A * X, BX = B * X */
-    KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);
-    KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);
-
-    for (int i = 0; i < m; i++) {
-      auto x = Kokkos::subview(X, Kokkos::ALL(), i);
-      auto Bx = Kokkos::subview(BX, Kokkos::ALL(), i);
-      auto Ax = Kokkos::subview(AX, Kokkos::ALL(), i);
-      auto r = Kokkos::subview(R, Kokkos::ALL(), i);
-
-      /* mu = (BX, X) / (AX, X) */
-      T xBx = KokkosBlas::dot(x, Bx);
-      T xAx = KokkosBlas::dot(x, Ax);
-      mu(i) = xBx / xAx;
-
-      /* R = BX - AX * mu */
-      KokkosBlas::update(1.0, Bx, -mu(i), Ax, 0.0, r);
-    }
-
-    // printMat("mu", mu.data(), 1, m);
-    // printMat("R", R.data(), n, m);
-
-    // W = M * R, preconditioning, M = A^-1
-    if (Mp != nullptr) {
+    if (Mp != nullptr) {  // W = M * R, preconditioning, normally M = A^-1
       KokkosBlas::gemm("N", "N", 1.0, M, R, 0.0, W);
-    } else {
+    } else {  // without preconditioning
       Kokkos::deep_copy(W, R);
     }
     // printMat("W", W.data(), n, m);
@@ -110,7 +158,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
     if (k > 0) {
       Z = View2D<T>("Z", n, 3 * m);
       Kokkos::parallel_for(
-          "lobpcg::initZ",
+          "S = [X, W, P]",
           Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n, m}),
           KOKKOS_LAMBDA(int i, int j) {
             Z(i, j) = W(i, j);
@@ -120,7 +168,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
     } else {
       Z = View2D<T>("Z", n, 2 * m);
       Kokkos::parallel_for(
-          "lobpcg::initZ",
+          "S = [X, W]",
           Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n, m}),
           KOKKOS_LAMBDA(int i, int j) {
             Z(i, j) = W(i, j);
@@ -190,6 +238,18 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
     KokkosBlas::update(1.0, PYp, 1.0, WYw, 0.0, P);
     KokkosBlas::update(1.0, XYx, 1.0, P, 0.0, X);
 
+    /* Compute residual */
+    KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);  // AX = A * X
+    KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);  // BX = B * X
+    for (int i = 0; i < m; i++) {
+      auto x = Kokkos::subview(X, Kokkos::ALL(), i);
+      auto Bx = Kokkos::subview(BX, Kokkos::ALL(), i);
+      auto Ax = Kokkos::subview(AX, Kokkos::ALL(), i);
+      auto r = Kokkos::subview(R, Kokkos::ALL(), i);
+
+      KokkosBlas::update(1.0, Ax, -w(i), Bx, 0.0, r);  // r = Ax - Bx * w(i)
+    }
+
     // printMat("X", X.data(), n, m);
     // printMat("P", P.data(), n, m);
 
@@ -202,8 +262,8 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   }
 
   // vp is the pointer to the eigenvector from X
-  View2D<T> v(vp, n, m);
-  Kokkos::deep_copy(v, X);
+  View2D<T> v_result(vp, n, m);
+  Kokkos::deep_copy(v_result, X);
   // printMat("v", v.data(), n, m);
 }
 
@@ -326,9 +386,16 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   View1D<T> v_in("inner eigenvectors", 3);
   View2D<T> gramA_out("outer symmetric Gram A matrices", m, m);
   View2D<T> gramB_out("outer symmetric Gram B matrices", m, m);
-  View1D<T> w_out("outer eigenvalues", m);
+  // View1D<T> w_out("outer eigenvalues", m);
   View2D<T> v_out("outer eigenvectors", m, m);
   View1D<int> is_convergent("convergent flag", m);
+
+  View1D<T> Ax("AX", n);
+  View1D<T> Aw("AW", n);
+  View1D<T> App("AP", n);
+  View1D<T> Bx("BX", n);
+  View1D<T> Bw("BW", n);
+  View1D<T> Bpp("BP", n);
 
   /* Start outer loop */
   for (int k = 0; k < maxiter; k++) {
@@ -338,59 +405,77 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
       Kokkos::deep_copy(W, R);
     }
 
+    tick("outer loop: Rayleigh-Ritz procedure 0");
+    /* Perform Rayleigh-Ritz procedure */
+    /* Z = [Wi, Xi, Pi] */
+    View2D<T> Z("Z", n, 3 * m);
+    Kokkos::parallel_for(
+        "S = [X, W, P]",
+        Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n, m}),
+        KOKKOS_LAMBDA(int i, int j) {
+          Z(i, 3 * j) = X(i, j);
+          Z(i, 3 * j + 1) = W(i, j);
+          Z(i, 3 * j + 2) = P(i, j);
+        });
+
+    tock("outer loop: Rayleigh-Ritz procedure 0");
+
+    /* Compute symmetric gram matrices */
+    int xm = Z.extent(1);  // number of columns in Z
+    View2D<T> gramA("gramA", xm, xm);
+    View2D<T> gramB("gramB", xm, xm);
+    View2D<T> AS("AS", n, xm);
+    View2D<T> BS("BS", n, xm);
+
+    tick("outer loop: Rayleigh-Ritz procedure 1");
+    /* gramA = Z^T * A * Z, gramB = Z^T * B * Z */
+    KokkosBlas::gemm("N", "N", 1.0, A, Z, 0.0, AS);
+    KokkosBlas::gemm("N", "N", 1.0, B, Z, 0.0, BS);
+    tock("outer loop: Rayleigh-Ritz procedure 1");
+
+    // /* Perform Rayleigh-Ritz procedure */
+    // /* Z = [W, P] */
+    // View2D<T> Z("Z", n, 2 * m);
+    // Kokkos::parallel_for(
+    //     "S = [X, W, P]",
+    //     Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n, m}),
+    //     KOKKOS_LAMBDA(int i, int j) {
+    //       Z(i, j) = W(i, j);
+    //       Z(i, j + m) = P(i, j);
+    //     });
+
+    // /* Compute symmetric gram matrices */
+
+    // tick("outer loop: Rayleigh-Ritz procedure 1");
+    // /* gramA = Z^T * A * Z, gramB = Z^T * B * Z */
+    // View2D<T> AZ("AS", n, 2 * m);
+    // View2D<T> BZ("BS", n, 2 * m);
+    // KokkosBlas::gemm("N", "N", 1.0, A, Z, 0.0, AZ);
+    // KokkosBlas::gemm("N", "N", 1.0, B, Z, 0.0, BZ);
+
+    // View2D<T> S("Z", n, 3 * m);
+
+    // auto AW = Kokkos::subview(AZ, Kokkos::ALL(), Kokkos::make_pair(0, m));
+    // auto BW = Kokkos::subview(BZ, Kokkos::ALL(), Kokkos::make_pair(0, m));
+    // auto AP = Kokkos::subview(AZ, Kokkos::ALL(), Kokkos::make_pair(m, 2 *
+    // m)); auto BP = Kokkos::subview(BZ, Kokkos::ALL(), Kokkos::make_pair(m, 2
+    // * m)); tock("outer loop: Rayleigh-Ritz procedure 1");
+
+    tick("inner loop");
     /* Use hard lock technique to lock the convergent eigenpairs */
     for (int i = 0; i < m; i++) {
       if (is_convergent(i) == 0) {  // only loop over non convergent eigenpairs
         /* Perform inner Rayleigh-Ritz procedure */
-
-        /* Compute symmetric Gram matrices */
-        // Kokkos::parallel_for(
-        //     "Compute: gramA = S^T * A * S, gramB = S^T * B * S",
-        //     Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {n,
-        //     n}), KOKKOS_LAMBDA(int ii, int jj) {
-        //       gramA_in(0, 0) += X(ii, i) * A(ii, jj) * X(jj, i);
-        //       gramA_in(0, 1) += X(ii, i) * A(ii, jj) * W(jj, i);
-        //       gramA_in(0, 2) += X(ii, i) * A(ii, jj) * P(jj, i);
-        //       gramA_in(1, 1) += W(ii, i) * A(ii, jj) * W(jj, i);
-        //       gramA_in(1, 2) += W(ii, i) * A(ii, jj) * P(jj, i);
-        //       gramA_in(2, 2) += P(ii, i) * A(ii, jj) * P(jj, i);
-
-        //       gramB_in(0, 0) += X(ii, i) * B(ii, jj) * X(jj, i);
-        //       gramB_in(0, 1) += X(ii, i) * B(ii, jj) * W(jj, i);
-        //       gramB_in(0, 2) += X(ii, i) * B(ii, jj) * P(jj, i);
-        //       gramB_in(1, 1) += W(ii, i) * B(ii, jj) * W(jj, i);
-        //       gramB_in(1, 2) += W(ii, i) * B(ii, jj) * P(jj, i);
-        //       gramB_in(2, 2) += P(ii, i) * B(ii, jj) * P(jj, i);
-        //     });
-
-        // // gramA_in(0, 0) = w(i);
-        // gramA_in(1, 0) = gramA_in(0, 1);
-        // gramA_in(2, 0) = gramA_in(0, 2);
-        // gramA_in(2, 1) = gramA_in(1, 2);
-
-        // // gramB(0, 0) = 1.0;
-        // gramB_in(1, 0) = gramB_in(0, 1);
-        // gramB_in(2, 0) = gramB_in(0, 2);
-        // gramB_in(2, 1) = gramB_in(1, 2);
-
-        /* construct S = [X, W, P] */
-        Kokkos::parallel_for(
-            "S = [X, W, P]", Kokkos::RangePolicy<ExecSpace>(0, n),
-            KOKKOS_LAMBDA(int j) {
-              S(j, 0) = X(j, i);
-              S(j, 1) = W(j, i);
-              S(j, 2) = P(j, i);
-            });
-
-        View2D<T> AS("AS", n, 3);
-        View2D<T> BS("BS", n, 3);
-        KokkosBlas::gemm("N", "N", 1.0, A, S, 0.0, AS);
-        KokkosBlas::gemm("N", "N", 1.0, B, S, 0.0, BS);
-        KokkosBlas::gemm("T", "N", 1.0, S, AS, 0.0, gramA_in);
-        KokkosBlas::gemm("T", "N", 1.0, S, BS, 0.0, gramB_in);
+        auto As = Kokkos::subview(AS, Kokkos::ALL(),
+                                  Kokkos::make_pair(3 * i, 3 * i + 3));
+        auto Bs = Kokkos::subview(BS, Kokkos::ALL(),
+                                  Kokkos::make_pair(3 * i, 3 * i + 3));
+        auto s = Kokkos::subview(Z, Kokkos::ALL(),
+                                 Kokkos::make_pair(3 * i, 3 * i + 3));
+        KokkosBlas::gemm("T", "N", 1.0, s, As, 0.0, gramA_in);
+        KokkosBlas::gemm("T", "N", 1.0, s, Bs, 0.0, gramB_in);
 
         /* Solve the 3x3 small eigenvalue problem */
-
         if (k == 0) {
           View2D<T> gramA_sub("gramA_sub", 2, 2);
           View2D<T> gramB_sub("gramB_sub", 2, 2);
@@ -407,36 +492,59 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
           lapackage::sygvx<T>(gramA_in.data(), gramB_in.data(), 3, 1,
                               w_in.data(), v_in.data());
         }
+        // tock("inner loop: Rayleigh-Ritz procedure 3");
 
-        /* Compute the Ritz vector */
-        Kokkos::parallel_for(
-            "X[:, i] = X[:, i] * v(0) + W[:, i] * v(1) + P[:, i] * v(2)"
-            "P[:, i] = W[:, i] * v(1) + P[:, i] * v(2)",
-            Kokkos::RangePolicy<ExecSpace>(0, n), KOKKOS_LAMBDA(int j) {
-              P(j, i) = W(j, i) * v_in(1) + P(j, i) * v_in(2);
-              X(j, i) = X(j, i) * v_in(0) + P(j, i);
-            });
+        // tick("inner loop: Rayleigh-Ritz procedure 4");
+        // X[:, i] = X[:, i] * v(0) + W[:, i] * v(1) + P[:, i] * v(2)
+        // P[:, i] = W[:, i] * v(1) + P[:, i] * v(2)
+        auto x = Kokkos::subview(X, Kokkos::ALL(), i);
+        auto w = Kokkos::subview(W, Kokkos::ALL(), i);
+        auto p = Kokkos::subview(P, Kokkos::ALL(), i);
+        KokkosBlas::axpby(v_in(1), w, v_in(2), p);
+        KokkosBlas::axpby(1.0, p, v_in(0), x);
+
+        // tock("inner loop: Rayleigh-Ritz procedure 4")
 
       }  // end if is_convergent
     }    // end inner loop
+    tock("inner loop");
 
+    tick("outer loop: Rayleigh-Ritz procedure 3");
     /* Perform outer Rayleigh-Ritz procedure */
     /*gramA = X^T * A * X, gramB = X^T * B * X */
     KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);
     KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);
     KokkosBlas::gemm("T", "N", 1.0, X, AX, 0.0, gramA_out);
     KokkosBlas::gemm("T", "N", 1.0, X, BX, 0.0, gramB_out);
+    tock("outer loop: Rayleigh-Ritz procedure 3");
 
-    lapackage::sygvx<T>(gramA_out.data(), gramB_out.data(), m, m, w_out.data(),
+    tick("outer loop: Rayleigh-Ritz procedure 4");
+    lapackage::sygvx<T>(gramA_out.data(), gramB_out.data(), m, m, w.data(),
                         v_out.data());
+    tock("outer loop: Rayleigh-Ritz procedure 4");
 
+    tick("outer loop: Rayleigh-Ritz procedure 5");
     /* Compute the Ritz vector */
+    // View2D<T> X0("X for last iteration", n, m);
+    // Kokkos::deep_copy(X0, X);
+    // KokkosBlas::gemm("N", "T", 1.0, X0, v_out, 0.0, X);  // X = X * v
+    // KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);      // AX = A * X
+    // KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);      // BX = B * X
+    View2D<T> AX0("AX for last iteration", n, m);
+    View2D<T> BX0("BX for last iteration", n, m);
+    Kokkos::deep_copy(AX0, AX);
+    Kokkos::deep_copy(BX0, BX);
     View2D<T> X0("X for last iteration", n, m);
+    View2D<T> P0("P for last iteration", n, m);
     Kokkos::deep_copy(X0, X);
+    Kokkos::deep_copy(P0, P);
     KokkosBlas::gemm("N", "T", 1.0, X0, v_out, 0.0, X);  // X = X * v
-    KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);      // AX = A * X
-    KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);      // BX = B * X
+    KokkosBlas::gemm("N", "T", 1.0, P0, v_out, 0.0, P);  // P = P * v
+    KokkosBlas::gemm("N", "T", 1.0, AX0, v_out, 0.0, AX);  // AX = AX * v
+    KokkosBlas::gemm("N", "T", 1.0, BX0, v_out, 0.0, BX);  // BX = BX * v
+    tock("outer loop: Rayleigh-Ritz procedure 5");
 
+    tick("outer loop: Rayleigh-Ritz procedure 6");
     /* Compute residual */
     View1D<T> res("residual norm", m);
     for (int i = 0; i < m; i++) {
@@ -445,13 +553,14 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
       auto Bx = Kokkos::subview(BX, Kokkos::ALL(), i);
       auto r = Kokkos::subview(R, Kokkos::ALL(), i);
 
-      KokkosBlas::update(1.0, Ax, -w_out(i), Bx, 0.0, r);  // r = Ax - Bx * w(i)
-      T x_norm = KokkosBlas::nrm2_squared(x);              // X_norm = ||x||
-      T r_norm = KokkosBlas::nrm2_squared(r);              // R_norm = ||r||
+      KokkosBlas::update(1.0, Ax, -w(i), Bx, 0.0, r);  // r = Ax - Bx * w(i)
+      T x_norm = KokkosBlas::nrm2_squared(x);          // X_norm = ||x||
+      T r_norm = KokkosBlas::nrm2_squared(r);          // R_norm = ||r||
 
       // res = ||ri|| / (||A|| + wi*||B||) * ||xi||)
-      res(i) = sqrt(r_norm) / ((A_norm + B_norm * w_out(i)) * sqrt(x_norm));
+      res(i) = sqrt(r_norm) / ((A_norm + B_norm * w(i)) * sqrt(x_norm));
     }
+    tock("outer loop: Rayleigh-Ritz procedure 6");
 
     /* Check convergence */
     T res_max = 0.0;
@@ -495,7 +604,7 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   View1D<T> w_result(wp, m0);
   View2D<T> v_result(vp, n, m0);
   auto X_m0 = Kokkos::subview(X, Kokkos::ALL(), Kokkos::make_pair(0, m0));
-  auto w_m0 = Kokkos::subview(w_out, Kokkos::make_pair(0, m0));
+  auto w_m0 = Kokkos::subview(w, Kokkos::make_pair(0, m0));
   Kokkos::deep_copy(v_result, X_m0);
   Kokkos::deep_copy(w_result, w_m0);
 }
@@ -503,3 +612,107 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
 }  // namespace linalg
 
 #endif  // LOBPCG_HPP
+
+// tick("inner loop: Rayleigh-Ritz procedure 1");
+
+// /* construct S = [X, W, P] */
+// Kokkos::parallel_for(
+//     "S = [X, W, P]", Kokkos::RangePolicy<ExecSpace>(0, n),
+//     KOKKOS_LAMBDA(int j) {
+//       S(j, 0) = X(j, i);
+//       S(j, 1) = W(j, i);
+//       S(j, 2) = P(j, i);
+//     });
+// View2D<T> AS("AS", n, 3);
+// View2D<T> BS("BS", n, 3);
+// KokkosBlas::gemm("N", "N", 1.0, A, S, 0.0, AS);
+// KokkosBlas::gemm("N", "N", 1.0, B, S, 0.0, BS);
+
+// /* Compute symmetric Gram matrices */
+// Kokkos::parallel_for(
+//     "Compute: gramA = S^T * A * S, gramB = S^T * B * S",
+//     Kokkos::RangePolicy<ExecSpace>(0, n), KOKKOS_LAMBDA(int jj) {
+//       gramA_in(0, 0) += X(jj, i) * AS(jj, 0);
+//       gramA_in(0, 1) += X(jj, i) * AS(jj, 1);
+//       gramA_in(0, 2) += X(jj, i) * AS(jj, 2);
+//       gramA_in(1, 1) += W(jj, i) * AS(jj, 1);
+//       gramA_in(1, 2) += W(jj, i) * AS(jj, 2);
+//       gramA_in(2, 2) += P(jj, i) * AS(jj, 2);
+
+//       gramB_in(0, 0) += X(jj, i) * BS(jj, 0);
+//       gramB_in(0, 1) += X(jj, i) * BS(jj, 1);
+//       gramB_in(0, 2) += X(jj, i) * BS(jj, 2);
+//       gramB_in(1, 1) += W(jj, i) * BS(jj, 1);
+//       gramB_in(1, 2) += W(jj, i) * BS(jj, 2);
+//       gramB_in(2, 2) += P(jj, i) * BS(jj, 2);
+//     });
+
+// // gramA_in(0, 0) = w(i);
+// gramA_in(1, 0) = gramA_in(0, 1);
+// gramA_in(2, 0) = gramA_in(0, 2);
+// gramA_in(2, 1) = gramA_in(1, 2);
+
+// // gramB(0, 0) = 1.0;
+// gramB_in(1, 0) = gramB_in(0, 1);
+// gramB_in(2, 0) = gramB_in(0, 2);
+// gramB_in(2, 1) = gramB_in(1, 2);
+// tock("inner loop: Rayleigh-Ritz procedure 1");
+
+// ******************************************************
+
+// tick("inner loop: Rayleigh-Ritz procedure 2");
+// /* construct S = [X, W, P] */
+// Kokkos::parallel_for(
+//     "S = [X, W, P]", Kokkos::RangePolicy<ExecSpace>(0, n),
+//     KOKKOS_LAMBDA(int j) {
+//       S(j, 0) = X(j, i);
+//       S(j, 1) = W(j, i);
+//       S(j, 2) = P(j, i);
+//     });
+// tock("inner loop: Rayleigh-Ritz procedure 2");
+// tick("inner loop: Rayleigh-Ritz procedure 2");
+
+// View2D<T> AS("AS", n, 3);
+// View2D<T> BS("BS", n, 3);
+// KokkosBlas::gemm("N", "N", 1.0, A, S, 0.0, AS);
+// KokkosBlas::gemm("N", "N", 1.0, B, S, 0.0, BS);
+// tock("inner loop: Rayleigh-Ritz procedure 2");
+// tick("inner loop: Rayleigh-Ritz procedure 2");
+// KokkosBlas::gemm("T", "N", 1.0, S, AS, 0.0, gramA_in);
+// KokkosBlas::gemm("T", "N", 1.0, S, BS, 0.0, gramB_in);
+// tock("inner loop: Rayleigh-Ritz procedure 2");
+
+// ****************************************************
+// auto Ax = Kokkos::subview(AX, Kokkos::ALL(), i);
+// auto Aw = Kokkos::subview(AW, Kokkos::ALL(), i);
+// auto App = Kokkos::subview(AP, Kokkos::ALL(), i);
+
+// auto Bx = Kokkos::subview(BX, Kokkos::ALL(), i);
+// auto Bw = Kokkos::subview(BW, Kokkos::ALL(), i);
+// auto Bpp = Kokkos::subview(BP, Kokkos::ALL(), i);
+
+// auto x = Kokkos::subview(X, Kokkos::ALL(), i);
+// auto w = Kokkos::subview(W, Kokkos::ALL(), i);
+// auto p = Kokkos::subview(P, Kokkos::ALL(), i);
+
+// gramA_in(0, 0) = KokkosBlas::dot(x, Ax);
+// gramA_in(0, 1) = KokkosBlas::dot(x, Aw);
+// gramA_in(1, 1) = KokkosBlas::dot(w, Aw);
+// gramA_in(0, 2) = KokkosBlas::dot(x, App);
+// gramA_in(1, 2) = KokkosBlas::dot(w, App);
+// gramA_in(2, 2) = KokkosBlas::dot(p, App);
+
+// gramB_in(0, 0) = 1.0;
+// gramB_in(0, 1) = KokkosBlas::dot(x, Bw);
+// gramB_in(1, 1) = KokkosBlas::dot(w, Bw);
+// gramB_in(0, 2) = KokkosBlas::dot(x, Bpp);
+// gramB_in(1, 2) = KokkosBlas::dot(w, Bpp);
+// gramB_in(2, 2) = KokkosBlas::dot(p, Bpp);
+
+// gramA_in(1, 0) = gramA_in(0, 1);
+// gramA_in(2, 0) = gramA_in(0, 2);
+// gramA_in(2, 1) = gramA_in(1, 2);
+
+// gramB_in(1, 0) = gramB_in(0, 1);
+// gramB_in(2, 0) = gramB_in(0, 2);
+// gramB_in(2, 1) = gramB_in(1, 2);

@@ -405,7 +405,7 @@ def lobpcg2(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     return eigenval, eigenvec
 
 
-def lobpcg3(A, X, B=None, M=None, tol=1e-7, maxiter=500):
+def lobpcg3(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     N, m = X.shape
 
     if B is None:
@@ -431,16 +431,17 @@ def lobpcg3(A, X, B=None, M=None, tol=1e-7, maxiter=500):
     O = np.diag(O)
 
     X = X @ C
+    # X = X / np.linalg.norm(X)
 
     R = A @ X - B @ X @ O
     P = np.zeros((N, m))
 
-    Anorm = np.linalg.norm(A @ X) / np.linalg.norm(X)
-    Bnorm = np.linalg.norm(B @ X) / np.linalg.norm(X)
+    # Anorm = np.linalg.norm(A @ X) / np.linalg.norm(X)
+    # Bnorm = np.linalg.norm(B @ X) / np.linalg.norm(X)
 
     k = 0
     residual = 1
-    non_convergent_indx = np.arange(m)
+    # non_convergent_indx = np.arange(m)
 
     # M = np.linalg.inv(A)
 
@@ -453,8 +454,8 @@ def lobpcg3(A, X, B=None, M=None, tol=1e-7, maxiter=500):
         #     W = ortho(B, R, X)
 
         # W = W / np.linalg.norm(W)
-        X = X[:, non_convergent_indx]
-        W = W[:, non_convergent_indx]
+        # X = X[:, non_convergent_indx]
+        # W = W[:, non_convergent_indx]
 
         if k > 0:
             # P = P / np.linalg.norm(P)
@@ -463,6 +464,8 @@ def lobpcg3(A, X, B=None, M=None, tol=1e-7, maxiter=500):
             # BP = B @ P
         else:
             S = np.hstack((X, W))
+
+        S = S / np.linalg.norm(S)
 
         # AX = A @ X
         # AW = A @ W
@@ -565,7 +568,7 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     XBX = B[:m, :m]
     # C, O = RayleighRitz3(XAX, XBX, m)
     O, C = eigh(XAX, XBX)
-    
+
     X = X @ C
     # X = X / np.linalg.norm(X)
     R = A @ X - B @ X @ np.diag(O)
@@ -577,6 +580,7 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     SAS = np.zeros((3, 3))
     SBS = np.zeros((3, 3))
     non_convergent_indx = np.arange(m)
+    
 
     for k in range(maxiter):
         W = R
@@ -669,15 +673,17 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
             #     SBS[1, 0] = XBW
             #     SBS[1, 1] = WBW
 
-            # ic(SAS)
-            # ic(SBS)
+
             if k > 0:
                 S = np.vstack((X[:, i], W[:, i], P[:, i])).T
             else:
                 S = np.vstack((X[:, i], W[:, i])).T
-
+            
             SAS = S.T @ A @ S
             SBS = S.T @ B @ S
+            
+            # ic(SAS)
+            # ic(SBS)
 
             O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
 
@@ -691,13 +697,16 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
             X[:, i] = x
             P[:, i] = p
 
-        XAX = X.T @ A @ X
-        XBX = X.T @ B @ X
-        O, C = eigh(XAX, XBX)
-        
-        X = X @ C
         AX = A @ X
         BX = B @ X
+        XAX = X.T @ AX
+        XBX = X.T @ BX
+        O, C = eigh(XAX, XBX)
+
+        X = X @ C
+        P = P @ C
+        AX = AX @ C
+        BX = BX @ C
         R = AX - BX @ np.diag(O)
 
         # ic(R)
@@ -743,8 +752,8 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
 
 
 if __name__ == "__main__":
-    n = 1000  # Size of the matrix
-    m = 20  # Number of desired eigenpairs
+    n = 10  # Size of the matrix
+    m = 2  # Number of desired eigenpairs
     np.random.seed(0)
 
     A = rand_symm_mat(n=n, eig_low=2, eig_high=10, nrepeat=1)
