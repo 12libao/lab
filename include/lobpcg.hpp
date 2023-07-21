@@ -277,9 +277,23 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   // TODO: if the lowest residual is still above 1e-4, then fail
   // TODO: print residual precision based on tolerance set
 
-  const int m0 = m;                    // number of eigenpairs desired
-  const int m1 = int(ceil(0.3 * m0));  // added number of eigenpairs to compute
-  m = m0 + m1;                         // total number of eigenpairs to compute
+
+  const int m0 = m;                  // number of eigenpairs desired
+  const int m1 = int(ceil(2 * m0));  // added number of eigenpairs to compute
+  m = m0 + m1;  // total number of eigenpairs to compute
+  if (m0 > int(ceil(n * 0.3))) {
+    printf("m is larger than 30%% of n, use Lapack::sygvx instead\n");
+    return;
+  }
+
+  if (m > int(ceil(n * 0.3))) {
+    m = int(ceil(n * 0.3));
+  }
+
+  if (verbose) {
+    printf("%d eigenpairs to compute, \n", m0);
+    printf("%d eigenpairs added to reduce number of iterations, \n", m1);
+  }
 
   // View2D<T> AB("AB", 2 * n, n);
   // auto AB1 = Kokkos::subview(AB, Kokkos::make_pair(0, n), Kokkos::ALL());
@@ -288,7 +302,7 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   View2D<T> A(Ap, n, n);
   View2D<T> B;
   // View2D<T> X("X", n, m);
-  View2D<T> M;
+
   View2D<T> XAX("XAX", m, m);
   View2D<T> XBX("XBX", m, m);
 
@@ -332,6 +346,9 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   View2D<T> W_AW_BW("vstack[X, AW, BW]", 3 * n, m);
   View2D<T> P_AP_BP("vstack[X, AP, BP]", 3 * n, m);
 
+  View2D<T> X_AX_BX0("X_AX_BX for last iteration", 3 * n, m);
+  View2D<T> P_AP_BP0("P_AP_BP for last iteration", 3 * n, m);
+
   auto pair1 = Kokkos::make_pair(0, n);
   auto X = Kokkos::subview(X_AX_BX, pair1, Kokkos::ALL());
   auto W = Kokkos::subview(W_AW_BW, pair1, Kokkos::ALL());
@@ -357,15 +374,9 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   View1D<T> w("eigenvalues", m);
   View2D<T> v("eigenvectors column major", m, m);
 
-  if (m > int(ceil(n * 0.3))) {
-    printf("m is larger than 30%% of m, use Lapack::sygvx instead\n");
-    return;
-  }
-
-  if (verbose) {
-    printf("%d eigenpairs to compute, \n", m0);
-    printf("%d eigenpairs added to speed up convergence\n", m1);
-  }
+  View1D<T> one("one", m);
+  View1D<T> zero("zero", m);
+  Kokkos::deep_copy(one, 1.0);
 
   if (Bp == nullptr) {
     B = View2D<T>("B", n, n);
@@ -413,11 +424,17 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   } else {
     View2D<T> X0("last X", n, m);
     Kokkos::deep_copy(X0, X);
-    KokkosBlas::gemm("N", "T", 1.0, X, v, 0.0, X);   // X = X * v
+    // KokkosBlas::gemm("N", "T", 1.0, X, v, 0.0, X);   // X = X * v
     KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);  // AX = A * X
     KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);  // BX = B * X
-    KokkosBlas::gemm("N", "T", 1.0, AX, v, 0.0, AX);  // AX = A * X
-    KokkosBlas::gemm("N", "T", 1.0, BX, v, 0.0, BX);  // BX = B * X
+    // KokkosBlas::gemm("N", "T", 1.0, AX, v, 0.0, AX);  // AX = A * X
+    // KokkosBlas::gemm("N", "T", 1.0, BX, v, 0.0, BX);  // BX = B * X
+    KokkosBlas::gemm("N", "T", 1.0, X_AX_BX, v, 0.0, X_AX_BX);  // BX = B * X
+  }
+
+  View2D<T> M;
+  if (Mp != nullptr) {
+    M = View2D<T>(Mp, n, n);
   }
 
   /* Compute residual: R = AX - BX * w, A_norm, B_norm */
@@ -482,8 +499,13 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
   // //     });
   // tock("copying");
 
+  View1D<T> v0("v0", m);
+  View1D<T> v1("v1", m);
+  View1D<T> v2("v2", m);
+
   /* Start outer loop */
   for (int k = 0; k < maxiter; k++) {
+    tick("outer loop: Rayleigh-Ritz procedure 0");
     if (Mp != nullptr) {  // W = M * R, preconditioning, normally M = A^-1
       KokkosBlas::gemm("N", "N", 1.0, M, R, 0.0, W);
     } else {  // without preconditioning
@@ -501,7 +523,6 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
       KokkosBlas::gemm("N", "N", 1.0, B, P, 0.0, BP);
     }
 
-    tick("outer loop: Rayleigh-Ritz procedure 0");
     KokkosBlas::gemm("N", "N", 1.0, A, W, 0.0, AW);
     KokkosBlas::gemm("N", "N", 1.0, B, W, 0.0, BW);
 
@@ -603,9 +624,6 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
         });
     tock("outer loop: Rayleigh-Ritz procedure 8");
 
-    View2D<T> vx("vx", m, m);
-    View2D<T> vw("vw", m, m);
-    View2D<T> vp("vp", m, m);
 
     tick("inner loop");
     /* Use hard lock technique to lock the convergent eigenpairs */
@@ -615,43 +633,11 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
 
         tick("inner loop: Rayleigh-Ritz procedure 1");
         /* Si = [Xi, Wi, Pi] */
-        // auto Xi = Kokkos::subview(X, Kokkos::ALL(), i);
-        // auto Wi = Kokkos::subview(W, Kokkos::ALL(), i);
-        // auto Pi = Kokkos::subview(P, Kokkos::ALL(), i);
 
-        // auto SXi = Kokkos::subview(Si, Kokkos::ALL(), 0);
-        // auto SWi = Kokkos::subview(Si, Kokkos::ALL(), 1);
-        // auto SPi = Kokkos::subview(Si, Kokkos::ALL(), 2);
 
-        // Kokkos::deep_copy(SXi, Xi);
-        // Kokkos::deep_copy(SWi, Wi);
-        // Kokkos::deep_copy(SPi, Pi);
+        /* Compute symmetric Gram matrices */
 
-        /* ASi = [AXi, AWi, APi] */
-        // auto AXi = Kokkos::subview(AX, Kokkos::ALL(), i);
-        // auto AWi = Kokkos::subview(AW, Kokkos::ALL(), i);
-        // auto APi = Kokkos::subview(AP, Kokkos::ALL(), i);
 
-        // auto ASXi = Kokkos::subview(ASi, Kokkos::ALL(), 0);
-        // auto ASWi = Kokkos::subview(ASi, Kokkos::ALL(), 1);
-        // auto ASPi = Kokkos::subview(ASi, Kokkos::ALL(), 2);
-
-        // Kokkos::deep_copy(ASXi, AXi);
-        // Kokkos::deep_copy(ASWi, AWi);
-        // Kokkos::deep_copy(ASPi, APi);
-
-        /* BSi = [BXi, BWi, BPi] */
-        // auto BXi = Kokkos::subview(BX, Kokkos::ALL(), i);
-        // auto BWi = Kokkos::subview(BW, Kokkos::ALL(), i);
-        // auto BPi = Kokkos::subview(BP, Kokkos::ALL(), i);
-
-        // auto BSXi = Kokkos::subview(BSi, Kokkos::ALL(), 0);
-        // auto BSWi = Kokkos::subview(BSi, Kokkos::ALL(), 1);
-        // auto BSPi = Kokkos::subview(BSi, Kokkos::ALL(), 2);
-
-        // Kokkos::deep_copy(BSXi, BXi);
-        // Kokkos::deep_copy(BSWi, BWi);
-        // Kokkos::deep_copy(BSPi, BPi);
         auto pair = Kokkos::make_pair(3 * i, 3 * i + 3);
         auto Si = Kokkos::subview(Sxwp, Kokkos::ALL(), pair);
         auto ASi = Kokkos::subview(ASxwp, Kokkos::ALL(), pair);
@@ -714,14 +700,14 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
         // KokkosBlas::axpby(v_in(1), ABWi, v_in(2), ABPi);
         // KokkosBlas::axpby(1.0, ABPi, v_in(0), ABXi);
 
-        auto X_AX_BX_i = Kokkos::subview(X_AX_BX, Kokkos::ALL(), i);
-        auto W_AW_BW_i = Kokkos::subview(W_AW_BW, Kokkos::ALL(), i);
-        auto P_AP_BP_i = Kokkos::subview(P_AP_BP, Kokkos::ALL(), i);
-        KokkosBlas::axpby(v_in(1), W_AW_BW_i, v_in(2), P_AP_BP_i);
-        KokkosBlas::axpby(1.0, P_AP_BP_i, v_in(0), X_AX_BX_i);
-        // vx(i, i) = v_in(0);
-        // vw(i, i) = v_in(1);
-        // vp(i, i) = v_in(2);
+        // auto X_AX_BX_i = Kokkos::subview(X_AX_BX, Kokkos::ALL(), i);
+        // auto W_AW_BW_i = Kokkos::subview(W_AW_BW, Kokkos::ALL(), i);
+        // auto P_AP_BP_i = Kokkos::subview(P_AP_BP, Kokkos::ALL(), i);
+        // KokkosBlas::axpby(v_in(1), W_AW_BW_i, v_in(2), P_AP_BP_i);
+        // KokkosBlas::axpby(1.0, P_AP_BP_i, v_in(0), X_AX_BX_i);
+        v0(i) = v_in(0);
+        v1(i) = v_in(1);
+        v2(i) = v_in(2);
 
         tock("inner loop: Rayleigh-Ritz procedure 4")
 
@@ -729,35 +715,13 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
     }    // end inner loop
     tock("inner loop");
 
-    // tick("outer loop: Rayleigh-Ritz procedure 9");
-    // Kokkos::parallel_for(
-    //     "Xi = Xi * v(0) + Wi * v(1) + Pi * v(2)"
-    //     "Pi = Wi * v(1) + Pi * v(2)",
-    //     Kokkos::MDRangePolicy<ExecSpace, Kokkos::Rank<2>>({0, 0}, {3 * n,
-    //     m}), KOKKOS_LAMBDA(int i, int j) {
-    //       P_AP_BP(i, j) = vw(j, j) * W_AW_BW(i, j) + vp(j, j) * P_AP_BP(i,
-    //       j); X_AX_BX(i, j) = vx(j, j) * X_AX_BX(i, j) + P_AP_BP(i, j);
-    //     });
+    tick("outer loop: Rayleigh-Ritz procedure 9");
+    /* [X, P] = [X, P] * v, [AX, AP] = [AX, AP] * v, [BX, BP] = [BX, BP] * v */
 
-    // View2D<T> AXV("AXV", n, m);
-    // View2D<T> AWV("AWV", n, m);
-    // View2D<T> APV("APV", n, m);
-    // View2D<T> BXV("BXV", n, m);
-    // View2D<T> BWV("BWV", n, m);
-    // View2D<T> BPV("BPV", n, m);
-
-    // KokkosBlas::gemm("N", "N", 1.0, AX, vx, 0.0, AXV);
-    // KokkosBlas::gemm("N", "N", 1.0, AW, vw, 0.0, AWV);
-    // KokkosBlas::gemm("N", "N", 1.0, AP, vp, 0.0, APV);
-    // KokkosBlas::gemm("N", "N", 1.0, BX, vx, 0.0, BXV);
-    // KokkosBlas::gemm("N", "N", 1.0, BW, vw, 0.0, BWV);
-    // KokkosBlas::gemm("N", "N", 1.0, BP, vp, 0.0, BPV);
-
-    // KokkosBlas::update(1.0, AWV, 1.0, APV, 0.0, AP);  // AP = AWV + APV
-    // KokkosBlas::update(1.0, AXV, 1.0, AP, 0.0, AX);   // AX = AXV + AP
-    // KokkosBlas::update(1.0, BWV, 1.0, BPV, 0.0, BP);  // BP = BWV + BPV
-    // KokkosBlas::update(1.0, BXV, 1.0, BP, 0.0, BX);   // BX = BXV + BP
-    // tock("outer loop: Rayleigh-Ritz procedure 9");
+    KokkosBlas::axpby(v1, W_AW_BW, v2, P_AP_BP);  // P = W * v(1) + P * v(2)
+    KokkosBlas::axpby(one, P_AP_BP, v0, X_AX_BX);  // X = P + X * v(0)
+   
+    tock("outer loop: Rayleigh-Ritz procedure 9");
 
     tick("outer loop: Rayleigh-Ritz procedure 3");
     /* Perform outer Rayleigh-Ritz procedure */
@@ -775,33 +739,50 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
 
     tick("outer loop: Rayleigh-Ritz procedure 5");
     /* Compute the Ritz vector */
-    /* [X, P] = [X, P] * v, [AX, AP] = [AX, AP] * v, [BX, BP] = [BX, BP] * v */
-    KokkosBlas::gemm("N", "T", 1.0, X_AX_BX, v_out, 0.0, X_AX_BX);
-    KokkosBlas::gemm("N", "T", 1.0, P_AP_BP, v_out, 0.0, P_AP_BP);
+    // /* [X, P] = [X, P] * v, [AX, AP] = [AX, AP] * v, [BX, BP] = [BX, BP] * v */
+    Kokkos::deep_copy(X_AX_BX0, X_AX_BX);
+    Kokkos::deep_copy(P_AP_BP0, P_AP_BP);
+    KokkosBlas::gemm("N", "T", 1.0, X_AX_BX0, v_out, 0.0, X_AX_BX);
+    KokkosBlas::gemm("N", "T", 1.0, P_AP_BP0, v_out, 0.0, P_AP_BP);
 
     tock("outer loop: Rayleigh-Ritz procedure 5");
 
     tick("outer loop: Rayleigh-Ritz procedure 6");
     /* Compute residual */
-    View1D<T> res("residual norm", m);
-    for (int i = 0; i < m; i++) {
-      if (is_convergent(i) == 0) {
-        auto Xi = Kokkos::subview(X, Kokkos::ALL(), i);
-        auto AXi = Kokkos::subview(AX, Kokkos::ALL(), i);
-        auto BXi = Kokkos::subview(BX, Kokkos::ALL(), i);
-        auto Ri = Kokkos::subview(R, Kokkos::ALL(), i);
+    KokkosBlas::axpby(w, BX, zero, R);  // R = BX * w
+    KokkosBlas::axpy(-1.0, AX, R);  // R = R - AX
 
-        // r = Ax - Bx * w(i)
-        KokkosBlas::update(1.0, AXi, -w(i), BXi, 0.0, Ri);
+    View2D<T> Rd("AX+BX * w", n, m);
+    KokkosBlas::update(-1.0, R, -1.0, AX, 0.0, Rd); // Rd = R + AX
+
+    tock("outer loop: Rayleigh-Ritz procedure 6");
+
+    tick("outer loop: Rayleigh-Ritz procedure 7");
+    View1D<T> res("residual norm", m);
+    for (int i = 0; i < m0; i++) {
+      if (is_convergent(i) == 0) {
+        // auto Xi = Kokkos::subview(X, Kokkos::ALL(), i);
+        // auto AXi = Kokkos::subview(AX, Kokkos::ALL(), i);
+        // auto BXi = Kokkos::subview(BX, Kokkos::ALL(), i);
+        auto Ri = Kokkos::subview(R, Kokkos::ALL(), i);
+        auto Rdi = Kokkos::subview(Rd, Kokkos::ALL(), i);
+
+        // res(i) = sqrt(KokkosBlas::nrm2w_squared(Ri, Rdi));  // res = ||Ri|| / ||Rdi||
 
         // res = ||ri|| / (||A|| + wi*||B||) * ||xi||)
-        T Xi_norm = KokkosBlas::nrm2_squared(Xi);
+        // T Xi_norm = KokkosBlas::nrm2_squared(Xi);
+        // T AXi_norm = sqrt(KokkosBlas::nrm2_squared(AXi));
+        // T BXi_norm = sqrt(KokkosBlas::nrm2_squared(BXi));
         T Ri_norm = KokkosBlas::nrm2_squared(Ri);
-        res(i) = sqrt(Ri_norm) / ((A_norm + B_norm * w(i)) * sqrt(Xi_norm));
+        T Rdi_norm = KokkosBlas::nrm2_squared(Rdi);
+        // res(i) = sqrt(Ri_norm) / ((A_norm + B_norm * w(i)) * sqrt(Xi_norm));
+        // res(i) = Ri_norm / (AXi_norm + BXi_norm * w(i));
+        res(i) = sqrt(Ri_norm / Rdi_norm);
+        // res(i) = Ri_norm;
       }
     }
-    
-    tock("outer loop: Rayleigh-Ritz procedure 6");
+
+    tock("outer loop: Rayleigh-Ritz procedure 7");
 
     /* Check convergence */
     T res_max = 0.0;
@@ -831,13 +812,13 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
              res_max);
     }
 
-    for (int i = m0; i < m; i++) {
-      if (res(i) > tol) {
-        is_convergent(i) = 0;  // not converged
-      } else {
-        is_convergent(i) = 1;  // converged
-      }
-    }
+    // for (int i = m0; i < m; i++) {
+    //   if (res(i) > tol) {
+    //     is_convergent(i) = 0;  // not converged
+    //   } else {
+    //     is_convergent(i) = 1;  // converged
+    //   }
+    // }
 
   }  // end outer loop
 
@@ -924,31 +905,31 @@ void lobpcg2(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr,
 // tock("inner loop: Rayleigh-Ritz procedure 2");
 
 // ****************************************************
-// auto Ax = Kokkos::subview(AX, Kokkos::ALL(), i);
-// auto Aw = Kokkos::subview(AW, Kokkos::ALL(), i);
-// auto App = Kokkos::subview(AP, Kokkos::ALL(), i);
+// auto AXi = Kokkos::subview(AX, Kokkos::ALL(), i);
+// auto AWi = Kokkos::subview(AW, Kokkos::ALL(), i);
+// auto APi = Kokkos::subview(AP, Kokkos::ALL(), i);
 
-// auto Bx = Kokkos::subview(BX, Kokkos::ALL(), i);
-// auto Bw = Kokkos::subview(BW, Kokkos::ALL(), i);
-// auto Bpp = Kokkos::subview(BP, Kokkos::ALL(), i);
+// auto BXi = Kokkos::subview(BX, Kokkos::ALL(), i);
+// auto BWi = Kokkos::subview(BW, Kokkos::ALL(), i);
+// auto BPi = Kokkos::subview(BP, Kokkos::ALL(), i);
 
-// auto x = Kokkos::subview(X, Kokkos::ALL(), i);
-// auto w = Kokkos::subview(W, Kokkos::ALL(), i);
-// auto p = Kokkos::subview(P, Kokkos::ALL(), i);
+// auto Xi = Kokkos::subview(X, Kokkos::ALL(), i);
+// auto Wi = Kokkos::subview(W, Kokkos::ALL(), i);
+// auto Pi = Kokkos::subview(P, Kokkos::ALL(), i);
 
-// gramA_in(0, 0) = KokkosBlas::dot(x, Ax);
-// gramA_in(0, 1) = KokkosBlas::dot(x, Aw);
-// gramA_in(1, 1) = KokkosBlas::dot(w, Aw);
-// gramA_in(0, 2) = KokkosBlas::dot(x, App);
-// gramA_in(1, 2) = KokkosBlas::dot(w, App);
-// gramA_in(2, 2) = KokkosBlas::dot(p, App);
+// gramA_in(0, 0) = KokkosBlas::dot(Xi, AXi);
+// gramA_in(0, 1) = KokkosBlas::dot(Xi, AWi);
+// gramA_in(1, 1) = KokkosBlas::dot(Wi, AWi);
+// gramA_in(0, 2) = KokkosBlas::dot(Xi, APi);
+// gramA_in(1, 2) = KokkosBlas::dot(Wi, APi);
+// gramA_in(2, 2) = KokkosBlas::dot(Pi, APi);
 
 // gramB_in(0, 0) = 1.0;
-// gramB_in(0, 1) = KokkosBlas::dot(x, Bw);
-// gramB_in(1, 1) = KokkosBlas::dot(w, Bw);
-// gramB_in(0, 2) = KokkosBlas::dot(x, Bpp);
-// gramB_in(1, 2) = KokkosBlas::dot(w, Bpp);
-// gramB_in(2, 2) = KokkosBlas::dot(p, Bpp);
+// gramB_in(0, 1) = KokkosBlas::dot(Xi, BXi);
+// gramB_in(1, 1) = KokkosBlas::dot(Wi, BWi);
+// gramB_in(0, 2) = KokkosBlas::dot(Xi, BPi);
+// gramB_in(1, 2) = KokkosBlas::dot(Wi, BPi);
+// gramB_in(2, 2) = KokkosBlas::dot(Pi, BPi);
 
 // gramA_in(1, 0) = gramA_in(0, 1);
 // gramA_in(2, 0) = gramA_in(0, 2);
