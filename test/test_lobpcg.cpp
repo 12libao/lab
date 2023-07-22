@@ -32,7 +32,7 @@ typedef int I;
 typedef double T;
 
 constexpr I n = 10000;  // dof = 100,000,000 (one billion)
-constexpr I m = 10;
+constexpr I m = 30;
 
 int maxiter = 100;
 double tol = 1e-6;
