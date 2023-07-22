@@ -21,6 +21,8 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # Set the include directories
 include_directories(include)
 
+# set the complie flags for 03 optimization
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native")
 
 # # Add the library target
 # add_library(lapackage SHARED src/lapackage.cpp)
