@@ -254,11 +254,11 @@ TEST_F(LapackageFix, sygvx) {
 
   lapackage::sygvx<T>(A.data(), B.data(), 10, m, w_test.data(), v_test.data());
 
-  // printMat("w", w.data(), m, 1);
-  // printMat("w_test", w_test.data(), m, 1);
+  // printmat("w", w.data(), m, 1);
+  // printmat("w_test", w_test.data(), m, 1);
 
-  // printMat("v", v.data(), n, m, 1);
-  // printMat("v_test", v_test.data(), n, m, 1);
+  // printmat("v", v.data(), n, m, 1);
+  // printmat("v_test", v_test.data(), n, m, 1);
 
   // compare w to w_test
   for (int i = 0; i < m; i++) {
@@ -276,14 +276,14 @@ TEST_F(LapackageFix, sygvx) {
   for (int i = 0; i < m; i++) {
     View1D<T> res("res", n);
     auto x = Kokkos::subview(v, Kokkos::ALL, i);
-    printMat("x", x.data(), n, 1);
+    printmat("x", x.data(), n, 1);
     KokkosBlas::gemv("N", 1.0, A, x, 0.0, res);
-    printMat("res", res.data(), n, 1);
+    printmat("res", res.data(), n, 1);
     KokkosBlas::gemv("N", w(i), B, x, -1.0, res);
     for (int j = 0; j < n; j++) {
       EXPECT_NEAR(res(j), 0.0, tol);
     }
-    printMat("res", res.data(), n, 1);
+    printmat("res", res.data(), n, 1);
   }
 }
 
@@ -308,7 +308,6 @@ TEST_F(LapackageRandom, sygvx) {
   // for(int i = 0; i < n * m; i++) {
   //   EXPECT_NEAR(res(i), 0.0, tol);
   // }
-  
 }
 
 int main(int argc, char** argv) {

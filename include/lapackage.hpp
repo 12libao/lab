@@ -98,7 +98,7 @@ void sygvx(double* A, double* B, int n, int m, double* eigenvalues,
   double abstol = tol;  // Absolute tolerance
 
   // Initialize work arrays
-  int lwork = 1024;  // Length of work array
+  int lwork = 10 * n;  // Work space size
 
   // Work space query
   double* work = new double[lwork];
