@@ -7,11 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Find the required packages
-# find_package(LAPACK REQUIRED)
-find_package(MPI REQUIRED)
-find_package(OpenMP REQUIRED)
-find_package(Kokkos REQUIRED)
+# find_package(Kokkos REQUIRED)
 find_package(KokkosKernels REQUIRED)
+find_package(LAPACK REQUIRED)
 
 # Set the output directories
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -21,54 +19,40 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 # Set the include directories
 include_directories(include)
 
-# set the complie flags for 03 optimization
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -mtune=native")
-
-# # Add the library target
-# add_library(lapackage SHARED src/lapackage.cpp)
-# target_link_libraries(lapackage 
-#     PUBLIC 
-#         Kokkos::kokkos 
-#         Kokkos::kokkoskernels 
-#         LAPACK)
-
-# Add the main executable
-add_executable(run 
-    # src/lapackage.cpp
-    # src/lobpcg.cpp
-    src/main.cpp
-    )
-
-# Link the required libraries
-target_link_libraries(run 
-    PUBLIC 
-        MPI::MPI_CXX 
-        OpenMP::OpenMP_CXX 
-        Kokkos::kokkos 
-        Kokkos::kokkoskernels
-        # lapackage
-        # LAPACK
-    )
-# target_link_libraries(run PUBLIC LAPACK::LAPACK)
-
-# ---- Different Modes ----
-
-# Debug mode
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-    target_compile_definitions(run PRIVATE DEBUG_MODE)
-elseif(CMAKE_BUILD_TYPE MATCHES Release)
-    target_compile_definitions(run PRIVATE RELEASE_MODE)
-endif()
-
-if (NOT CMAKE_BUILD_TYPE)
-    message(STATUS "No build type selected, default to Release")
-    set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# Set warning flags
+# Set compiler-specific optimization flags
 add_compile_options(
-  -Wall -Wextra -Wno-unused-variable -Wno-unused-parameter -Wno-sign-compare
+    # -O3
+    # -march=native
+    -Wall
+    -Wextra
+    -Wno-unused-variable
+    -Wno-unused-parameter
+    -Wno-sign-compare
 )
+
+# Add the main executable if not in Test mode
+if(NOT CMAKE_BUILD_TYPE MATCHES Test)
+    add_executable(run 
+        # src/lapackage.cpp
+        # src/lobpcg.cpp
+        src/main.cpp
+        )
+
+    # Link the required libraries
+    target_link_libraries(run 
+        PUBLIC 
+            # Kokkos::kokkos 
+            Kokkos::kokkoskernels
+            LAPACK::LAPACK
+        )
+    
+    # Set Debug/Release mode definitions
+    target_compile_definitions(run 
+        PRIVATE 
+            "$<$<CONFIG:Debug>:DEBUG_MODE>"
+            "$<$<CONFIG:Release>:RELEASE_MODE>"
+    )
+endif()
 
 # ---- Google Test Integration ----
 
@@ -90,7 +74,12 @@ if(CMAKE_BUILD_TYPE MATCHES Test)
         test/test_lobpcg.cpp
         )
 
-    target_link_libraries(runUnitTest gtest_main MPI::MPI_CXX OpenMP::OpenMP_CXX Kokkos::kokkos Kokkos::kokkoskernels LAPACK)
+    target_link_libraries(runUnitTest 
+        gtest_main 
+        # Kokkos::kokkos 
+        Kokkos::kokkoskernels 
+        LAPACK::LAPACK
+    )
     
     # Optionally, you can define a custom test target to run the tests easily
     add_custom_target(run-tests
@@ -99,3 +88,7 @@ if(CMAKE_BUILD_TYPE MATCHES Test)
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
 endif()
+
+# cmake .. -DCMAKE_BUILD_TYPE=Release
+# cmake .. -DCMAKE_BUILD_TYPE=Debug
+# cmake .. -DCMAKE_BUILD_TYPE=Test

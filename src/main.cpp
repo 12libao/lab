@@ -8,9 +8,9 @@
 // include kokkoskernels
 #include <KokkosBlas1_axpby.hpp>
 // include MPI
-#include <mpi.h>
+// #include <mpi.h>
 // include openmp
-#include <omp.h>
+// #include <omp.h>
 // include lobpcg
 #include "lobpcg.hpp"
 

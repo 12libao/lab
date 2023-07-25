@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LAPACKAGE_HPP
 #define LAPACKAGE_HPP
 

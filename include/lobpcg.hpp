@@ -1,3 +1,4 @@
+#pragma once
 #ifndef LOBPCG_HPP
 #define LOBPCG_HPP
 
@@ -43,7 +44,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
 
   /* If n < 100, use preconditioned sygvx */
   if (n < 200) {
-    m = n; 
+    m = n;
   }
 
   // if (m0 >= int(floor(n * 0.3))) {

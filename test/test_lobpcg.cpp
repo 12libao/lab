@@ -41,20 +41,20 @@ class RandSysPosMat : public ::testing::Test {
     A = View2D<T>("A", n, n);
     B = View2D<T>("B", n, n);
 
-    // A = A_upper + A_upper^T + n*I
-    Kokkos::parallel_for(
-        "construct_ABI", n, KOKKOS_LAMBDA(const int i) {
-          for (int j = 0; j < i + 1; j++) {
-            A(i, j) = (T)rand() / RAND_MAX;
-            B(i, j) = (T)rand() / RAND_MAX;
-            A(j, i) = A(i, j);
-            B(j, i) = B(i, j);
-            if (i == j) {
-              A(i, j) += n;
-              B(i, j) += n;
-            }
-          }
-        });
+  //   // A = A_upper + A_upper^T + n*I
+  //   Kokkos::parallel_for(
+  //       "construct_ABI", n, KOKKOS_LAMBDA(const int i) {
+  //         for (int j = 0; j < i + 1; j++) {
+  //           A(i, j) = (T)rand() / RAND_MAX;
+  //           B(i, j) = (T)rand() / RAND_MAX;
+  //           A(j, i) = A(i, j);
+  //           B(j, i) = B(i, j);
+  //           if (i == j) {
+  //             A(i, j) += n;
+  //             B(i, j) += n;
+  //           }
+  //         }
+  //       });
   }
 
   View2D<T> A;
