@@ -3,9 +3,6 @@
 
 #include <lapacke.h>
 
-#include <array>
-#include <cstdio>
-
 namespace lapackage {
 /********************* declarations *********************/
 /**
