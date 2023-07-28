@@ -8,23 +8,23 @@
 #include "lobpcg.hpp"
 #include "utils.hpp"
 
-#ifdef KOKKOS_ENABLE_CUDA
-#define MemSpace Kokkos::CudaSpace
-#endif
+// #ifdef KOKKOS_ENABLE_CUDA
+// #define MemSpace Kokkos::CudaSpace
+// #endif
 
-#ifndef MemSpace
-#define MemSpace Kokkos::HostSpace
-#endif
+// #ifndef MemSpace
+// #define MemSpace Kokkos::HostSpace
+// #endif
 
-using ExecSpace = MemSpace::execution_space;
-using RangePolicy = Kokkos::RangePolicy<ExecSpace>;
+// using ExecSpace = MemSpace::execution_space;
+// using RangePolicy = Kokkos::RangePolicy<ExecSpace>;
 
-typedef Kokkos::DefaultExecutionSpace::array_layout Layout;
+// typedef Kokkos::DefaultExecutionSpace::array_layout Layout;
 
-template <typename T>
-using View1D = Kokkos::View<T*, Layout, ExecSpace>;
-template <typename T>
-using View2D = Kokkos::View<T**, Layout, ExecSpace>;
+// template <typename T>
+// using View1D = Kokkos::View<T*, Layout, ExecSpace>;
+// template <typename T>
+// using View2D = Kokkos::View<T**, Layout, ExecSpace>;
 
 typedef int I;
 typedef double T;
@@ -265,7 +265,7 @@ TEST_F(RandSysPosMat, lobpcg2) {
   View2D<T> X("X", n, m);
   check();
   tick("linalg::lobpcg2");
-  linalg::lobpcg<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data());
+  linalg::lobpcg_device<T>(A.data(), B.data(), n, m, w_test.data(), v_test.data());
   tock("linalg::lobpcg2");
 
   // View1D<T> w("w", m);

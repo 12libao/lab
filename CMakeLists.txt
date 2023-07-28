@@ -21,8 +21,8 @@ include_directories(include)
 
 # Set compiler-specific optimization flags
 add_compile_options(
-    # -O3
-    # -march=native
+    -O3
+    -march=native
     -Wall
     -Wextra
     -Wno-unused-variable
