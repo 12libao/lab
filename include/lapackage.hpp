@@ -7,7 +7,7 @@
 namespace lapackage {
 /********************* declarations *********************/
 /**
- * Computes eigenvalues and eigenvectors for A*x=(lambda)*B*x.
+ * Computes eigenvalues and eigenvectors for Ax=¦ËBx using LAPACK.
  *
  * Input:
  *    A: symmetric matrix
@@ -16,8 +16,8 @@ namespace lapackage {
  *    m: number of eigenvalues and eigenvectors to be computed
  *
  * Output:
- *    eigenvalues: eigenvalues of A*x=(lambda)*B*x
- *    eigenvectors: eigenvectors of A*x=(lambda)*B*x
+ *    eigenvalues: eigenvalues of Ax=¦ËBx
+ *    eigenvectors: eigenvectors of Ax=¦ËBx
  *
  * Note:
  *    eigenvalues and eigenvectors are sorted in ascending order

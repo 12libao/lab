@@ -27,7 +27,7 @@ def rand_symm_mat(n=10, eig_low=0.1, eig_high=100.0, nrepeat=1):
     return np.dot(Q, np.dot(np.diag(lam), Q.T))  # Compute A = Q*Lambda*Q^{T}
 
 
-def eig_analytical(A):
+def syevx3x3_analytical(A):
     eigvals = np.zeros(3)
     p1 = A[0, 1] ** 2 + A[0, 2] ** 2 + A[1, 2] ** 2
     if p1 == 0:
@@ -50,7 +50,8 @@ def eig_analytical(A):
 
         eigvals[0] = q + 2 * p * np.cos(phi + (2 * np.pi / 3))
         eigvals[1] = q + 2 * p * np.cos(phi - (2 * np.pi / 3))
-        eigvals[2] = q + 2 * p * np.cos(phi)
+        # eigvals[2] = q + 2 * p * np.cos(phi)
+        eigvals[2] = 3 * q - eigvals[0] - eigvals[1]
 
     # find corresponding eigenvectors
     v1 = A - eigvals[0] * np.eye(3)
@@ -62,7 +63,9 @@ def eig_analytical(A):
     v[:, 1] = v3 @ v1[:, 2]
     v[:, 2] = v1 @ v2[:, 0]
 
-    v = v / np.linalg.norm(v, axis=0)
+    v[:, 0] = v[:, 0] / np.linalg.norm(v[:, 0])
+    v[:, 1] = v[:, 1] / np.linalg.norm(v[:, 1])
+    v[:, 2] = v[:, 2] / np.linalg.norm(v[:, 2])
 
     # error1 = np.linalg.norm(v1 @ v[:, 0])
     # error2 = np.linalg.norm(v2 @ v[:, 1])
@@ -70,6 +73,49 @@ def eig_analytical(A):
     # ic(error1, error2, error3)
 
     return eigvals, v
+
+
+def sygvx3x3(A, B):
+    Ob, Cb = syevx3x3_analytical(B)
+    phi_B = Cb @ np.linalg.inv(np.diag(Ob ** (1 / 2) + 1e-15))
+    Oa, Ca = syevx3x3_analytical(phi_B.T @ A @ phi_B)
+    C_ab = phi_B @ Ca
+    return Oa, C_ab
+
+
+def syevx2x2_analytical(A):
+    a00 = A[0, 0]
+    a01 = A[0, 1]
+    a11 = A[1, 1]
+
+    trA = a00 + a11
+    detA = (a00 * a11) - (a01 * a01)
+    gapA = np.sqrt(trA * trA - 4 * detA)
+
+    eigvals = np.zeros(2)
+    eigvals[0] = (trA - gapA) / 2
+    eigvals[1] = (trA + gapA) / 2
+
+    v = np.zeros((2, 2))
+    v[0, 0] = 1 / np.sqrt(1 + (a00 - eigvals[0]) ** 2 / a01**2)
+    v[1, 0] = (eigvals[0] - a00) / a01 * v[0, 0]
+
+    v[0, 1] = 1 / np.sqrt(1 + (a00 - eigvals[1]) ** 2 / a01**2)
+    v[1, 1] = (eigvals[1] - a00) / a01 * v[0, 1]
+
+    # error1 = np.linalg.norm(A @ v[:, 0] - eigvals[0] * v[:, 0])
+    # error2 = np.linalg.norm(A @ v[:, 1] - eigvals[1] * v[:, 1])
+    # ic(error1, error2)
+
+    return eigvals, v
+
+
+def sygvx2x2(A, B):
+    Ob, Cb = syevx2x2_analytical(B)
+    phi_B = Cb @ np.linalg.inv(np.diag(Ob ** (1 / 2) + 1e-15))
+    Oa, Ca = syevx2x2_analytical(phi_B.T @ A @ phi_B)
+    C_ab = phi_B @ Ca
+    return Oa, C_ab
 
 
 def RayleighRitz(A, B, X, m):
@@ -626,6 +672,7 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
 
     for k in range(maxiter):
         W = R
+        # ic(W)
         # if k > 0:
         #     W = ortho(B, R, np.hstack((X, P)))
         # else:
@@ -636,38 +683,48 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
         # use hard lock technique to lock the converged eigenpairs
         # counter: only update the un-converged eigenpairs
         # for all index in array non_convergent_indx:
+        # ic(X)
+        # ic(W)
+        # ic(P)
         for i in non_convergent_indx:
+            W[:, i] = W[:, i] / np.linalg.norm(W[:, i])
+            X[:, i] = X[:, i] / np.linalg.norm(X[:, i])
+            
             if k > 0:
-                W[:, i] = W[:, i] / np.linalg.norm(W[:, i])
                 P[:, i] = P[:, i] / np.linalg.norm(P[:, i])
-                X[:, i] = X[:, i] / np.linalg.norm(X[:, i])
-                S = np.vstack((X[:, i], W[:, i], P[:, i])).T
-            else:
-                S = np.vstack((X[:, i], W[:, i])).T
+
+            S = np.vstack((X[:, i], W[:, i], P[:, i])).T
 
             # S = S / np.linalg.norm(S, axis=0)
 
             SAS = S.T @ A @ S
             SBS = S.T @ B @ S
 
+            # if k > 0:
+            # Oa, Ca = sygvx3x3(SAS, SBS)
+
+            if k > 0:
+                O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
+                Oa, Ca = sygvx3x3(SAS, SBS)
+            else:
+                O, C = eigh(SAS[:2, :2], SBS[:2, :2], subset_by_index=[0, 0])
+                Oa, Ca = sygvx2x2(SAS[:2, :2], SBS[:2, :2])
+                # Oa, Ca = sygvx3x3(SAS, SBS)
+                # ic(O, Oa)
+                # ic(C)
+                ic(Oa)
+                ic(Ca)
+
+            ic(np.allclose(np.abs(C[:, 0]), np.abs(Ca[:, 0]), atol=1e-32))
+
+            O = Oa[0]
+            C = Ca
+            # ic(k, i)
+            # ic(S)
             # ic(SAS)
             # ic(SBS)
-
-            if k > 0:
-                Ob, Cb = eig_analytical(SBS)
-                phi_B = Cb @ np.linalg.inv(np.diag(Ob ** (1 / 2) + 1e-50))
-                Oa, Ca = eig_analytical(phi_B.T @ SAS @ phi_B)
-                C_ab = phi_B @ Ca[:, 0]
-
-            O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
-            if k > 0:
-                # ic(O)
-                # ic(C)
-                # ic(C_ab)
-                ic(np.allclose(np.abs(C[:, 0]), np.abs(C_ab), atol=1e-20))
-
-                O = Oa[0]
-                C[:, 0] = C_ab
+            # ic(O)
+            # ic(C)
 
             if k > 0:
                 p = C[1, 0] * W[:, i] + C[2, 0] * P[:, i]
@@ -689,7 +746,7 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
         P = P @ C
         AX = AX @ C
         BX = BX @ C
-        R = AX - BX @ np.diag(O)
+        R = BX @ np.diag(O) - AX
 
         # ic(R)
         # R[:, :m0] = A @ X[:, :m0] - B @ X[:, :m0] @ np.diag(O)
