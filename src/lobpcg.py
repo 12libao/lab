@@ -27,6 +27,51 @@ def rand_symm_mat(n=10, eig_low=0.1, eig_high=100.0, nrepeat=1):
     return np.dot(Q, np.dot(np.diag(lam), Q.T))  # Compute A = Q*Lambda*Q^{T}
 
 
+def eig_analytical(A):
+    eigvals = np.zeros(3)
+    p1 = A[0, 1] ** 2 + A[0, 2] ** 2 + A[1, 2] ** 2
+    if p1 == 0:
+        eigvals[0] = A[0, 0]
+        eigvals[1] = A[1, 1]
+        eigvals[2] = A[2, 2]
+    else:
+        q = np.trace(A) / 3
+        p2 = (A[0, 0] - q) ** 2 + (A[1, 1] - q) ** 2 + (A[2, 2] - q) ** 2 + 2 * p1
+        p = np.sqrt(p2 / 6)
+        temp = (1 / p) * (A - q * np.eye(3))
+        r = np.linalg.det(temp) / 2
+
+        if r <= -1 + 1e-10:
+            phi = np.pi / 3
+        elif r >= 1 - 1e-10:
+            phi = 0
+        else:
+            phi = np.arccos(r) / 3
+
+        eigvals[0] = q + 2 * p * np.cos(phi + (2 * np.pi / 3))
+        eigvals[1] = q + 2 * p * np.cos(phi - (2 * np.pi / 3))
+        eigvals[2] = q + 2 * p * np.cos(phi)
+
+    # find corresponding eigenvectors
+    v1 = A - eigvals[0] * np.eye(3)
+    v2 = A - eigvals[1] * np.eye(3)
+    v3 = A - eigvals[2] * np.eye(3)
+
+    v = np.zeros((3, 3))
+    v[:, 0] = v2 @ v3[:, 1]
+    v[:, 1] = v3 @ v1[:, 2]
+    v[:, 2] = v1 @ v2[:, 0]
+
+    v = v / np.linalg.norm(v, axis=0)
+
+    # error1 = np.linalg.norm(v1 @ v[:, 0])
+    # error2 = np.linalg.norm(v2 @ v[:, 1])
+    # error3 = np.linalg.norm(v3 @ v[:, 2])
+    # ic(error1, error2, error3)
+
+    return eigvals, v
+
+
 def RayleighRitz(A, B, X, m):
     XAX = X.T @ A @ X
     XBX = X.T @ B @ X
@@ -577,10 +622,7 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     Anorm = np.linalg.norm(A @ X) / np.linalg.norm(X)
     Bnorm = np.linalg.norm(B @ X) / np.linalg.norm(X)
 
-    SAS = np.zeros((3, 3))
-    SBS = np.zeros((3, 3))
     non_convergent_indx = np.arange(m)
-    
 
     for k in range(maxiter):
         W = R
@@ -589,103 +631,43 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
         # else:
         #     W = ortho(B, R, X)
 
-        # W = W / np.linalg.norm(W)
+        # W = W / np.linalg.norm(W, axis=0)
 
         # use hard lock technique to lock the converged eigenpairs
         # counter: only update the un-converged eigenpairs
         # for all index in array non_convergent_indx:
         for i in non_convergent_indx:
-            # for i in range(counter, m):
-            # for i in range(m):
-            # ic(i)
-
-            # if k > 0:
-            #     # S = np.vstack((X[:, i], W[:, i], P[:, i])).T
-            #     AP = A @ P[:, i]
-            #     BP = B @ P[:, i]
-            # else:
-            #     # S = np.vstack((X[:, i], W[:, i])).T
-            #     AX = A @ X[:, i]
-            #     BX = B @ X[:, i]
-
-            # # S = S / np.linalg.norm(S)
-            # # C, O = RayleighRitz2(A, B, S, 1)
-            # # AX = A @ X[:, i]
-            # AW = A @ W[:, i]
-            # BW = B @ W[:, i]
-
-            # if k > 0:
-            #     # set the valuse of O into XAX
-            #     # ic(O.shape)
-            #     # ic(O)
-            #     # ic(np.diag(O)[0].item())
-            #     # XAX = O[0].item()
-            #     XAX = X[:, i].T @ AX
-            #     XAW = X[:, i].T @ AW
-            #     XAP = X[:, i].T @ AP
-            #     WAW = W[:, i].T @ AW
-            #     WAP = W[:, i].T @ AP
-            #     PAP = P[:, i].T @ AP
-
-            #     XBX = X[:, i].T @ BX
-            #     XBW = X[:, i].T @ BW
-            #     XBP = X[:, i].T @ BP
-            #     WBW = W[:, i].T @ BW
-            #     WBP = W[:, i].T @ BP
-            #     PBP = P[:, i].T @ BP
-
-            #     SAS[0, 0] = XAX
-            #     SAS[0, 1] = XAW
-            #     SAS[0, 2] = XAP
-            #     SAS[1, 0] = XAW
-            #     SAS[1, 1] = WAW
-            #     SAS[1, 2] = WAP
-            #     SAS[2, 0] = XAP
-            #     SAS[2, 1] = WAP
-            #     SAS[2, 2] = PAP
-
-            #     SBS[0, 0] = XBX
-            #     SBS[0, 1] = XBW
-            #     SBS[0, 2] = XBP
-            #     SBS[1, 0] = XBW
-            #     SBS[1, 1] = WBW
-            #     SBS[1, 2] = WBP
-            #     SBS[2, 0] = XBP
-            #     SBS[2, 1] = WBP
-            #     SBS[2, 2] = PBP
-
-            # else:
-            #     XAX = X[:, i].T @ AX
-            #     XAW = X[:, i].T @ AW
-            #     WAW = W[:, i].T @ AW
-
-            #     XBX = X[:, i].T @ BX
-            #     XBW = X[:, i].T @ BW
-            #     WBW = W[:, i].T @ BW
-
-            #     SAS[0, 0] = XAX
-            #     SAS[0, 1] = XAW
-            #     SAS[1, 0] = XAW
-            #     SAS[1, 1] = WAW
-
-            #     SBS[0, 0] = XBX
-            #     SBS[0, 1] = XBW
-            #     SBS[1, 0] = XBW
-            #     SBS[1, 1] = WBW
-
-
             if k > 0:
+                W[:, i] = W[:, i] / np.linalg.norm(W[:, i])
+                P[:, i] = P[:, i] / np.linalg.norm(P[:, i])
+                X[:, i] = X[:, i] / np.linalg.norm(X[:, i])
                 S = np.vstack((X[:, i], W[:, i], P[:, i])).T
             else:
                 S = np.vstack((X[:, i], W[:, i])).T
-            
+
+            # S = S / np.linalg.norm(S, axis=0)
+
             SAS = S.T @ A @ S
             SBS = S.T @ B @ S
-            
+
             # ic(SAS)
             # ic(SBS)
 
+            if k > 0:
+                Ob, Cb = eig_analytical(SBS)
+                phi_B = Cb @ np.linalg.inv(np.diag(Ob ** (1 / 2) + 1e-50))
+                Oa, Ca = eig_analytical(phi_B.T @ SAS @ phi_B)
+                C_ab = phi_B @ Ca[:, 0]
+
             O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
+            if k > 0:
+                # ic(O)
+                # ic(C)
+                # ic(C_ab)
+                ic(np.allclose(np.abs(C[:, 0]), np.abs(C_ab), atol=1e-20))
+
+                O = Oa[0]
+                C[:, 0] = C_ab
 
             if k > 0:
                 p = C[1, 0] * W[:, i] + C[2, 0] * P[:, i]
@@ -726,8 +708,11 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
         # Bnorm = np.linalg.norm(BX) / np.linalg.norm(X)
 
         for i in range(m0):
-            residual = np.linalg.norm(R[:, i]) / (
-                (Anorm + Bnorm * O[i]) * np.linalg.norm(X[:, i])
+            # residual = np.linalg.norm(R[:, i]) / (
+            #     (Anorm + Bnorm * O[i]) * np.linalg.norm(X[:, i])
+            # )
+            residual = np.linalg.norm(R[:, i]) / np.linalg.norm(
+                A @ X[:, i] + B @ X[:, i] * O[i]
             )
             # ic(residual)
             if residual > res_max:
@@ -742,8 +727,11 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
             break
 
         for i in range(m0, m):
-            residual = np.linalg.norm(R[:, i]) / (
-                (Anorm + Bnorm * np.abs(O[i])) * np.linalg.norm(X[:, i])
+            # residual = np.linalg.norm(R[:, i]) / (
+            #     (Anorm + Bnorm * np.abs(O[i])) * np.linalg.norm(X[:, i])
+            # )
+            residual = np.linalg.norm(R[:, i]) / np.linalg.norm(
+                A @ X[:, i] + B @ X[:, i] * O[i]
             )
             if residual > tol:
                 non_convergent_indx.append(i)
@@ -843,3 +831,81 @@ if __name__ == "__main__":
     # ic(U.T @ M @ U)
     # ic(V.T @ M @ U)
     # generate Gaussian random matrix omega  with size n x m
+
+    # for i in range(counter, m):
+    # for i in range(m):
+    # ic(i)
+
+    # if k > 0:
+    #     # S = np.vstack((X[:, i], W[:, i], P[:, i])).T
+    #     AP = A @ P[:, i]
+    #     BP = B @ P[:, i]
+    # else:
+    #     # S = np.vstack((X[:, i], W[:, i])).T
+    #     AX = A @ X[:, i]
+    #     BX = B @ X[:, i]
+
+    # # S = S / np.linalg.norm(S)
+    # # C, O = RayleighRitz2(A, B, S, 1)
+    # # AX = A @ X[:, i]
+    # AW = A @ W[:, i]
+    # BW = B @ W[:, i]
+
+    # if k > 0:
+    #     # set the valuse of O into XAX
+    #     # ic(O.shape)
+    #     # ic(O)
+    #     # ic(np.diag(O)[0].item())
+    #     # XAX = O[0].item()
+    #     XAX = X[:, i].T @ AX
+    #     XAW = X[:, i].T @ AW
+    #     XAP = X[:, i].T @ AP
+    #     WAW = W[:, i].T @ AW
+    #     WAP = W[:, i].T @ AP
+    #     PAP = P[:, i].T @ AP
+
+    #     XBX = X[:, i].T @ BX
+    #     XBW = X[:, i].T @ BW
+    #     XBP = X[:, i].T @ BP
+    #     WBW = W[:, i].T @ BW
+    #     WBP = W[:, i].T @ BP
+    #     PBP = P[:, i].T @ BP
+
+    #     SAS[0, 0] = XAX
+    #     SAS[0, 1] = XAW
+    #     SAS[0, 2] = XAP
+    #     SAS[1, 0] = XAW
+    #     SAS[1, 1] = WAW
+    #     SAS[1, 2] = WAP
+    #     SAS[2, 0] = XAP
+    #     SAS[2, 1] = WAP
+    #     SAS[2, 2] = PAP
+
+    #     SBS[0, 0] = XBX
+    #     SBS[0, 1] = XBW
+    #     SBS[0, 2] = XBP
+    #     SBS[1, 0] = XBW
+    #     SBS[1, 1] = WBW
+    #     SBS[1, 2] = WBP
+    #     SBS[2, 0] = XBP
+    #     SBS[2, 1] = WBP
+    #     SBS[2, 2] = PBP
+
+    # else:
+    #     XAX = X[:, i].T @ AX
+    #     XAW = X[:, i].T @ AW
+    #     WAW = W[:, i].T @ AW
+
+    #     XBX = X[:, i].T @ BX
+    #     XBW = X[:, i].T @ BW
+    #     WBW = W[:, i].T @ BW
+
+    #     SAS[0, 0] = XAX
+    #     SAS[0, 1] = XAW
+    #     SAS[1, 0] = XAW
+    #     SAS[1, 1] = WAW
+
+    #     SBS[0, 0] = XBX
+    #     SBS[0, 1] = XBW
+    #     SBS[1, 0] = XBW
+    #     SBS[1, 1] = WBW
