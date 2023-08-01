@@ -57,9 +57,9 @@ namespace linalg {
 template <typename T>
 void syevx3x3_analytical(T* Ap, int m, T* wp, T* vp, bool verbose = true) {
   constexpr auto pi = Kokkos::numbers::pi_v<T>;
-  View2D<T> A(Ap, 3, 3);  // RowMajor or ColMajor are the same since A is symmetric
-  View1D<T> w(wp, m);
-  View2D<T> v(vp, 3, m);  // RowMajor for host, ColMajor for device
+  HostView2D<T> A(Ap, 3, 3);  // RowMajor or ColMajor are the same since A is symmetric
+  HostView1D<T> w(wp, m);
+  HostView2D<T> v(vp, 3, m);  // RowMajor for host, ColMajor for device
 
   T a00 = A(0, 0);
   T a01 = A(0, 1);
@@ -182,13 +182,13 @@ void syevx3x3_analytical(T* Ap, int m, T* wp, T* vp, bool verbose = true) {
  */
 template <typename T>
 void sygvx3x3(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
-  View2D<T> A(Ap, 3, 3);
-  View2D<T> B(Bp, 3, 3);
+  HostView2D<T> A(Ap, 3, 3);
+  HostView2D<T> B(Bp, 3, 3);
 
   /* Compute eigenvalues and eigenvectors of B */
-  View2D<T> vB("eigenvectors of B", 3, 3);
-  View1D<T> wB("eigenvalues of B", 3);
-  syevx3x3_analytical(Bp, 3, wB.data(), vB.data());
+  HostView2D<T> vB("eigenvectors of B", 3, 3);
+  HostView1D<T> wB("eigenvalues of B", 3);
+  syevx3x3_analytical(B.data(), 3, wB.data(), vB.data());
 
   /* Compute ¦µB_hat = ¦µB * (¦«B^(1/2) + ¦ÅI)^(?1), in case ¦«B^(1/2) is singular */
   T eps = std::numeric_limits<T>::epsilon();
@@ -209,7 +209,7 @@ void sygvx3x3(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
   vB(2, 2) *= wB(2);
 
   /* Compute A_hat = ¦µB_hat * A * ¦µB_hat */
-  View2D<T> A_hat("A_hat", 3, 3);
+  HostView2D<T> A_hat("A_hat", 3, 3);
   T a00 = A(0, 0) * vB(0, 0) + A(0, 1) * vB(1, 0) + A(0, 2) * vB(2, 0);
   T a10 = A(1, 0) * vB(0, 0) + A(1, 1) * vB(1, 0) + A(1, 2) * vB(2, 0);
   T a20 = A(2, 0) * vB(0, 0) + A(2, 1) * vB(1, 0) + A(2, 2) * vB(2, 0);
@@ -234,11 +234,11 @@ void sygvx3x3(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
   A_hat(2, 1) = A_hat(1, 2);
 
   /* Compute first m eigenpair of A_hat */
-  View2D<T> vA("eigenvectors of A_hat", 3, m);
+  HostView2D<T> vA("eigenvectors of A_hat", 3, m);
   syevx3x3_analytical(A_hat.data(), m, wp, vA.data());
 
   /* Compute eigenvectors ¦µ <- ¦µB_hat * ¦µA */
-  View2D<T> v(vp, 3, m);
+  HostView2D<T> v(vp, 3, m);
 
   v(0, 0) = vB(0, 0) * vA(0, 0) + vB(0, 1) * vA(1, 0) + vB(0, 2) * vA(2, 0);
   v(1, 0) = vB(1, 0) * vA(0, 0) + vB(1, 1) * vA(1, 0) + vB(1, 2) * vA(2, 0);
@@ -264,9 +264,9 @@ void sygvx3x3(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
 template <typename T>
 void syevx2x2_analytical(T* Ap, int m, T* wp, T* vp, bool verbose = true) {
   constexpr auto pi = Kokkos::numbers::pi_v<T>;
-  View2D<T> A(Ap, 2, 2);  // RowMajor or ColMajor are the same since A is symmetric
-  View1D<T> w(wp, m);
-  View2D<T> v(vp, 2, m);  // RowMajor for host, ColMajor for device
+  HostView2D<T> A(Ap, 2, 2);  // RowMajor or ColMajor are the same since A is symmetric
+  HostView1D<T> w(wp, m);
+  HostView2D<T> v(vp, 2, m);  // RowMajor for host, ColMajor for device
 
   T a00 = A(0, 0);
   T a01 = A(0, 1);
@@ -308,13 +308,13 @@ void syevx2x2_analytical(T* Ap, int m, T* wp, T* vp, bool verbose = true) {
  */
 template <typename T>
 void sygvx2x2(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
-  View2D<T> A(Ap, 2, 2);
-  View2D<T> B(Bp, 2, 2);
+  HostView2D<T> A(Ap, 2, 2);
+  HostView2D<T> B(Bp, 2, 2);
 
   /* Compute eigenvalues and eigenvectors of B */
-  View2D<T> vB("eigenvectors of B", 2, 2);
-  View1D<T> wB("eigenvalues of B", 2);
-  syevx2x2_analytical(Bp, 2, wB.data(), vB.data());
+  HostView2D<T> vB("eigenvectors of B", 2, 2);
+  HostView1D<T> wB("eigenvalues of B", 2);
+  syevx2x2_analytical(B.data(), 2, wB.data(), vB.data());
 
   /* Compute ¦µB_hat = ¦µB * (¦«B^(1/2) + ¦ÅI)^(?1), in case ¦«B^(1/2) is singular */
   T eps = std::numeric_limits<T>::epsilon();
@@ -328,7 +328,7 @@ void sygvx2x2(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
   vB(1, 1) *= wB(1);
 
   /* Compute A_hat = ¦µB_hat * A * ¦µB_hat */
-  View2D<T> A_hat("A_hat", 2, 2);
+  HostView2D<T> A_hat("A_hat", 2, 2);
   T a00 = A(0, 0) * vB(0, 0) + A(0, 1) * vB(1, 0);
   T a10 = A(1, 0) * vB(0, 0) + A(1, 1) * vB(1, 0);
 
@@ -341,11 +341,11 @@ void sygvx2x2(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
   A_hat(1, 0) = A_hat(0, 1);
 
   /* Compute first m eigenpair of A_hat */
-  View2D<T> vA("eigenvectors of A_hat", 2, m);
+  HostView2D<T> vA("eigenvectors of A_hat", 2, m);
   syevx2x2_analytical(A_hat.data(), m, wp, vA.data());
 
   /* Compute eigenvectors ¦µ <- ¦µB_hat * ¦µA */
-  View2D<T> v(vp, 2, m);
+  HostView2D<T> v(vp, 2, m);
 
   v(0, 0) = vB(0, 0) * vA(0, 0) + vB(0, 1) * vA(1, 0);
   v(1, 0) = vB(1, 0) * vA(0, 0) + vB(1, 1) * vA(1, 0);
@@ -367,7 +367,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
   // TODO: Xp need to copy to device
 
   const int m0 = m;                  // number of eigenpairs desired
-  const int m1 = int(ceil(1 * m0));  // added number of eigenpairs to compute
+  const int m1 = int(ceil(0.3 * m0));  // added number of eigenpairs to compute
   m = m0 + m1;                       // total number of eigenpairs to compute
   m = n < m ? n : m;                 // m cannot be larger than n
 
@@ -520,7 +520,6 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
 
   /* Compute residual: R = AX - BX * w, A_norm, B_norm */
   // HostView2D<T> h_R("h_R", n, m);
-
   View1D<T> neg_one("all->1", m);
   Kokkos::deep_copy(neg_one, -1.0);
   View2D<T> R("R = AX - BX * w", n, m);
@@ -536,8 +535,10 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
   View2D<T> norm("norm", m, 3);
   Kokkos::deep_copy(norm, 1.0);
   for (int i = 0; i < m; i++) {
-    norm(i, 0) = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(X, Kokkos::ALL(), i)));
-    norm(i, 1) = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(R, Kokkos::ALL(), i)));
+    T Xi_norm = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(X, Kokkos::ALL(), i)));
+    T Wi_norm = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(R, Kokkos::ALL(), i)));
+    Kokkos::deep_copy(Kokkos::subview(norm, i, 0), Xi_norm);
+    Kokkos::deep_copy(Kokkos::subview(norm, i, 1), Wi_norm);
   }
 
   // Kokkos::deep_copy(h_R, R);
@@ -550,7 +551,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
   auto gramA_outer = Kokkos::subview(gramAB_outer, Kokkos::ALL(), Kokkos::make_pair(0, m));
   auto gramB_outer = Kokkos::subview(gramAB_outer, Kokkos::ALL(), Kokkos::make_pair(m, 2 * m));
 
-  View2D<T> gramAB_inner("hstack: [gramA_inner, gramB_inner]", 3, 6);
+  Kokkos::DualView<T**> gramAB_inner("hstack: [gramA_inner, gramB_inner]", 3, 6);
   auto gramA_inner = Kokkos::subview(gramAB_inner, Kokkos::ALL(), Kokkos::make_pair(0, 3));
   auto gramB_inner = Kokkos::subview(gramAB_inner, Kokkos::ALL(), Kokkos::make_pair(3, 6));
 
@@ -561,7 +562,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
   auto gramA_outer = Kokkos::subview(gramAB_outer, Kokkos::make_pair(0, m), Kokkos::ALL());
   auto gramB_outer = Kokkos::subview(gramAB_outer, Kokkos::make_pair(m, 2 * m), Kokkos::ALL());
 
-  View2D<T> gramAB_inner("vstack: [gramA_inner, gramB_inner]", 6, 3);
+  Kokkos::DualView<T**> gramAB_inner("vstack: [gramA_inner, gramB_inner]", 6, 3);
   auto gramA_inner = Kokkos::subview(gramAB_inner, Kokkos::make_pair(0, 3), Kokkos::ALL());
   auto gramB_inner = Kokkos::subview(gramAB_inner, Kokkos::make_pair(3, 6), Kokkos::ALL());
 
@@ -571,12 +572,12 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
 
   Kokkos::DualView<T*> w_outer("outer eigenvalues", m);
   Kokkos::DualView<T**> v_outer("outer eigenvectors", m, m);
-  View1D<T> w_inner("inner eigenvalues", 1);
-  View1D<T> v_inner("inner eigenvectors", 3);
+  Kokkos::DualView<T*> w_inner("inner eigenvalues", 1);
+  Kokkos::DualView<T*> v_inner("inner eigenvectors", 3);
 
-  View1D<T> v0("v0", m);
-  View1D<T> v1("v1", m);
-  View1D<T> v2("v2", m);
+  Kokkos::DualView<T*> v0("v0", m);
+  Kokkos::DualView<T*> v1("v1", m);
+  Kokkos::DualView<T*> v2("v2", m);
 
   /* Initial convergent array as all false: 0 in host */
   Kokkos::DualView<T*> is_convergent("convergent flag", m);
@@ -653,7 +654,6 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
         });
 #endif
     // tick("inner loop");
-
     /* Perform inner Rayleigh-Ritz procedure */
     /* Use hard lock technique to lock the convergent eigenpairs */
     for (int i = 0; i < m; i++) {
@@ -662,7 +662,7 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
         /* Compute symmetric Gram matrices */
         auto Si = Kokkos::subview(S, Kokkos::ALL(), Kokkos::make_pair(i * 3, i * 3 + 3));
         auto ABSi = Kokkos::subview(ABS, Kokkos::ALL(), Kokkos::make_pair(i * 6, i * 6 + 6));
-        KokkosBlas::gemm("T", "N", 1.0, Si, ABSi, 0.0, gramAB_inner);
+        KokkosBlas::gemm("T", "N", 1.0, Si, ABSi, 0.0, gramAB_inner.d_view);
 
         // HostView2D<T> gramAB_inner_h("gramAB_inner_h", 3, 6);
         // Kokkos::deep_copy(gramAB_inner_h, gramAB_inner.d_view);
@@ -678,59 +678,71 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
         /* Compute symmetric Gram matrices */
         auto Si = Kokkos::subview(S, Kokkos::make_pair(i * n, (i + 1) * n), Kokkos::ALL());
         auto ABSi = Kokkos::subview(ABS, Kokkos::make_pair(i * n, (i + 1) * n), Kokkos::ALL());
-        KokkosBlas::gemm("T", "N", 1.0, ABSi, Si, 0.0, gramAB_inner);
+        KokkosBlas::gemm("T", "N", 1.0, ABSi, Si, 0.0, gramAB_inner.d_view);
 #endif
+        tick("inner loop 1");
 
-        // gramAB_inner.modify_device();
-        // gramAB_inner.sync_host();
+        gramAB_inner.modify_device();
+        gramAB_inner.sync_host();
+        tock("inner loop 1");
 
         // printmat("gramA_inner", gramA_inner.data(), 3, 3);
         // printmat("gramB_inner", gramB_inner.data(), 3, 3);
 
         /* Make sure store gramA, gramB to contigous memory */
+        tick("inner loop 0");
         int n_inner = (k == 0) ? 2 : 3;
 #ifdef KOKKOS_ENABLE_CUDA
         if (k == 0) {
-          gramA_inner(2, 0) = gramA_inner(0, 1);
-          gramA_inner(0, 1) = gramA_inner(1, 1);
-          gramB_inner(2, 0) = gramB_inner(0, 1);
-          gramB_inner(0, 1) = gramB_inner(1, 1);
+          gramA_inner.h_view(2, 0) = gramA_inner.h_view(0, 1);
+          gramB_inner.h_view(2, 0) = gramB_inner.h_view(0, 1);
+          gramA_inner.h_view(0, 1) = gramA_inner.h_view(1, 1);
+          gramB_inner.h_view(0, 1) = gramB_inner.h_view(1, 1);
         }
 #else
         if (k == 0) {
-          gramA_inner(0, 2) = gramA_inner(1, 0);
-          gramA_inner(1, 0) = gramA_inner(1, 1);
-          gramB_inner(0, 2) = gramB_inner(1, 0);
-          gramB_inner(1, 0) = gramB_inner(1, 1);
+          gramA_inner.h_view(0, 2) = gramA_inner.h_view(1, 0);
+          gramA_inner.h_view(1, 0) = gramA_inner.h_view(1, 1);
+          gramB_inner.h_view(0, 2) = gramB_inner.h_view(1, 0);
+          gramB_inner.h_view(1, 0) = gramB_inner.h_view(1, 1);
         }
 #endif
+        tock("inner loop 0");
+
         // printmat("gramA_inner", gramA_inner.data(), 3, 3);
         // printmat("gramB_inner", gramB_inner.data(), 3, 3);
 
         /* Compute eigenvalues and eigenvectors 3x3 eigenvalue problem */
-        // lapackage::sygvx<T>(gramA_inner.data(), gramB_inner.data(), n_inner, 1, w_inner.data(),
-        //                     v_inner.data());
+        // lapackage::sygvx<T>(gramA_inner.h_view.data(), gramB_inner.h_view.data(), n_inner, 1,
+        //                     w_inner.h_view.data(), v_inner.h_view.data());
 
+        tick("inner loop 2");
         if (k == 0) {
-          sygvx2x2(gramA_inner.data(), gramB_inner.data(), 1, w_inner.data(), v_inner.data());
+          sygvx2x2(gramA_inner.h_view.data(), gramB_inner.h_view.data(), 1, w_inner.h_view.data(),
+                   v_inner.h_view.data());
         } else {
-          sygvx3x3(gramA_inner.data(), gramB_inner.data(), 1, w_inner.data(), v_inner.data());
+          sygvx3x3(gramA_inner.h_view.data(), gramB_inner.h_view.data(), 1, w_inner.h_view.data(),
+                   v_inner.h_view.data());
         }
+        tock("inner loop 2");
 
+        tick("inner loop 3");
         /* Only store the result, move the computation out of the loop */
-        v0(i) = v_inner(0);
-        v1(i) = v_inner(1);
-        v2(i) = v_inner(2);
+        v0.h_view(i) = v_inner.h_view(0);
+        v1.h_view(i) = v_inner.h_view(1);
+        v2.h_view(i) = v_inner.h_view(2);
+        tock("inner loop 3");
       }
     }
     // tock("inner loop");
-
-    // v0.modify_host();
-    // v1.modify_host();
-    // v2.modify_host();
-    // v0.sync_device();
-    // v1.sync_device();
-    // v2.sync_device();
+    tick("inner loop 4");
+    v0.modify_host();
+    v1.modify_host();
+    v2.modify_host();
+    v0.sync_device();
+    v1.sync_device();
+    v2.sync_device();
+    tock("inner loop 4");
 
 // printmat("v0", v0.h_view.data(), m, 1);
 // printmat("v1", v1.h_view.data(), m, 1);
@@ -745,17 +757,17 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
     View1D<T> v2_v2_v2("v2_v2_v2", 3 * m);
     Kokkos::parallel_for(
         Kokkos::RangePolicy<ExecSpace>(0, m), KOKKOS_LAMBDA(const int i) {
-          v0_v0_v0(i) = v0(i);
-          v1_v1_v1(i) = v1(i);
-          v2_v2_v2(i) = v2(i);
+          v0_v0_v0(i) = v0.d_view(i);
+          v1_v1_v1(i) = v1.d_view(i);
+          v2_v2_v2(i) = v2.d_view(i);
 
-          v0_v0_v0(i + m) = v0(i);
-          v1_v1_v1(i + m) = v1(i);
-          v2_v2_v2(i + m) = v2(i);
+          v0_v0_v0(i + m) = v0.d_view(i);
+          v1_v1_v1(i + m) = v1.d_view(i);
+          v2_v2_v2(i + m) = v2.d_view(i);
 
-          v0_v0_v0(i + 2 * m) = v0(i);
-          v1_v1_v1(i + 2 * m) = v1(i);
-          v2_v2_v2(i + 2 * m) = v2(i);
+          v0_v0_v0(i + 2 * m) = v0.d_view(i);
+          v1_v1_v1(i + 2 * m) = v1.d_view(i);
+          v2_v2_v2(i + 2 * m) = v2.d_view(i);
         });
 
     KokkosBlas::axpby(v1_v1_v1, W_AW_BW, v2_v2_v2, P_AP_BP);  // P = W * v(1) + P * v(2)
@@ -763,8 +775,8 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
 #else
     View1D<T> one("all->1", m);
     Kokkos::deep_copy(one, 1.0);
-    KokkosBlas::axpby(v1, W_AW_BW, v2, P_AP_BP);   // P = W * v(1) + P * v(2)
-    KokkosBlas::axpby(one, P_AP_BP, v0, X_AX_BX);  // X = X * v(0) + P
+    KokkosBlas::axpby(v1.d_view, W_AW_BW, v2.d_view, P_AP_BP);  // P = W * v(1) + P * v(2)
+    KokkosBlas::axpby(one, P_AP_BP, v0.d_view, X_AX_BX);        // X = X * v(0) + P
 #endif
 
     // HostView2D<T> h_P_AP_BP("h_P_AP_BP", n, 3*m);
@@ -836,9 +848,12 @@ void lobpcg(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = n
 
           res(i) = sqrt(Ri_norm / Ri_norm_);  // res(i) = ||Ri|| / ||Ri_||
         }
-        norm(i, 0) = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(X, Kokkos::ALL(), i)));
-        norm(i, 1) = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(R, Kokkos::ALL(), i)));
-        norm(i, 2) = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(P, Kokkos::ALL(), i)));
+        T Xi_norm = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(X, Kokkos::ALL(), i)));
+        T Wi_norm = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(R, Kokkos::ALL(), i)));
+        T Pi_norm = sqrt(KokkosBlas::nrm2_squared(Kokkos::subview(P, Kokkos::ALL(), i)));
+        Kokkos::deep_copy(Kokkos::subview(norm, i, 0), Xi_norm);
+        Kokkos::deep_copy(Kokkos::subview(norm, i, 1), Wi_norm);
+        Kokkos::deep_copy(Kokkos::subview(norm, i, 2), Pi_norm);
       }
     }
 
