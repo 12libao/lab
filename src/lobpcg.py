@@ -530,46 +530,60 @@ def lobpcg3(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     # R = R / np.linalg.norm(R, axis=0)
 
     # # find eigenvalues and eigenvectors for B
-    if B is not None:
-        eigs, eigv = eigh(B, subset_by_index=[0, 0])
-    ic(eigs.shape, eigv.shape)
-    M = eigv @ np.diag(eigs ** (-1)) @ eigv.T
+    # if B is not None:
+    #     # eigs, eigv = eigh(B, subset_by_index=[0, 0])
+    #     eigs, eigv = lobpcg5(B)
+    # # ic(eigs.shape, eigv.shape)
+    # M = eigv @ np.diag(eigs ** (-1/2))
+    # M = M @ M.T
+    # # M = np.linalg.inv(M)
+    # # M = M / np.linalg.norm(M, axis=0)
+    # # M = np.linalg.inv(B)
+    # # M = eigv @ eigv.T
+    # e1 = np.zeros(N)
+    # e1[0] = 1
+    # M = e1[:, None] @ e1[None, :]
+    # W = np.zeros((N, m))
+    # AW = np.zeros((N, m))
+    # BW = np.zeros((N, m))
+    # counter = 0
     for k in range(maxiter):
         W = R
-        MW = M @ W
-        AMW = A @ MW
-        AW = M.T @ AMW
-        BW = B @ R
-        # AW = A @ W
-        # BW = B @ W
+        # MW = M @ R
+        # AMW = A @ MW
+        # MAMW = M.T @ AMW
+        # AW = AMW
+        AW = A @ W
+        BW = B @ W
+
         # if k > 0:
         #     W = ortho(B, R, np.hstack((X, P)))
         # else:
         #     W = ortho(B, R, X)
         # ic(P)
         # W = W / np.linalg.norm(W)
-        for i in non_convergent_indx:
-            Xi_norm = np.linalg.norm(X[:, i])
-            Wi_norm = np.linalg.norm(W[:, i])
-            # ic(Xi_norm, Wi_norm)
-            # Xi_norm = np.max(np.abs(X[:, i]))
-            # Wi_norm = np.max(np.abs(W[:, i]))
+        # for i in non_convergent_indx:
+        #     Xi_norm = np.linalg.norm(X[:, i])
+        #     Wi_norm = np.linalg.norm(W[:, i])
+        #     # ic(Xi_norm, Wi_norm)
+        #     # Xi_norm = np.max(np.abs(X[:, i]))
+        #     # Wi_norm = np.max(np.abs(W[:, i]))
 
-            W[:, i] = W[:, i] / Wi_norm
-            X[:, i] = X[:, i] / Xi_norm
+        #     W[:, i] = W[:, i] / Wi_norm
+        #     X[:, i] = X[:, i] / Xi_norm
 
-            AX[:, i] = AX[:, i] / Xi_norm
-            AW[:, i] = AW[:, i] / Wi_norm
+        #     AX[:, i] = AX[:, i] / Xi_norm
+        #     AW[:, i] = AW[:, i] / Wi_norm
 
-            BX[:, i] = BX[:, i] / Xi_norm
-            BW[:, i] = BW[:, i] / Wi_norm
+        #     BX[:, i] = BX[:, i] / Xi_norm
+        #     BW[:, i] = BW[:, i] / Wi_norm
 
-            if k > 0:
-                Pi_norm = np.linalg.norm(P[:, i])
-                # Pi_norm = np.max(np.abs(P[:, i]))
-                P[:, i] = P[:, i] / Pi_norm
-                AP[:, i] = AP[:, i] / Pi_norm
-                BP[:, i] = BP[:, i] / Pi_norm
+        #     if k > 0:
+        #         Pi_norm = np.linalg.norm(P[:, i])
+        #         # Pi_norm = np.max(np.abs(P[:, i]))
+        #         P[:, i] = P[:, i] / Pi_norm
+        #         AP[:, i] = AP[:, i] / Pi_norm
+        #         BP[:, i] = BP[:, i] / Pi_norm
     
         if k > 0:
             # P = P / np.linalg.norm(P)
@@ -633,7 +647,7 @@ def lobpcg3(A, X, B=None, M=None, tol=1e-8, maxiter=500):
         counter = m0 - len(non_convergent_indx)
         ic(k, counter, res_max)
 
-        if res_max < tol:
+        if res_max < tol: 
             break
 
         for i in range(m0, m):
@@ -642,6 +656,8 @@ def lobpcg3(A, X, B=None, M=None, tol=1e-8, maxiter=500):
             )
             if residual > tol:
                 non_convergent_indx.append(i)
+        
+        
 
     return O[:m0], X[:, :m0]
 
@@ -675,37 +691,37 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     BW = B @ R
     BP = B @ P
 
-    M = np.eye(N)
-    # find eigenvalues and eigenvectors for B
-    if B is not None:
-        eigs, eigv = eigh(B)
-    M = eigv @ np.diag(eigs ** (-1)) @ eigv.T 
+    # M = np.eye(N)
+    # # find eigenvalues and eigenvectors for B
+    # if B is not None:
+    #     eigs, eigv = eigh(B)
+    # M = eigv @ np.diag(eigs ** (-1)) @ eigv.T 
     for k in range(maxiter):
-        W = R @ M
-        AW = A @ W @ M
-        BW = B @ W @ M
+        W = R
+        AW = A @ W
+        BW = B @ W
 
         for i in non_convergent_indx:
-            # Xi_norm = np.linalg.norm(X[:, i])
-            # Wi_norm = np.linalg.norm(W[:, i])
-            # Xi_norm = np.max(np.abs(X[:, i]))
-            # Wi_norm = np.max(np.abs(W[:, i]))
+            Xi_norm = np.linalg.norm(X[:, i])
+            Wi_norm = np.linalg.norm(W[:, i])
+            Xi_norm = np.max(np.abs(X[:, i]))
+            Wi_norm = np.max(np.abs(W[:, i]))
 
-            # W[:, i] = W[:, i] / Wi_norm
-            # X[:, i] = X[:, i] / Xi_norm
+            W[:, i] = W[:, i] / Wi_norm
+            X[:, i] = X[:, i] / Xi_norm
 
-            # AX[:, i] = AX[:, i] / Xi_norm
-            # AW[:, i] = AW[:, i] / Wi_norm
+            AX[:, i] = AX[:, i] / Xi_norm
+            AW[:, i] = AW[:, i] / Wi_norm
 
-            # BX[:, i] = BX[:, i] / Xi_norm
-            # BW[:, i] = BW[:, i] / Wi_norm
+            BX[:, i] = BX[:, i] / Xi_norm
+            BW[:, i] = BW[:, i] / Wi_norm
 
-            # if k > 0:
-            #     Pi_norm = np.linalg.norm(P[:, i])
-            #     Pi_norm = np.max(np.abs(P[:, i]))
-            #     P[:, i] = P[:, i] / Pi_norm
-            #     AP[:, i] = AP[:, i] / Pi_norm
-            #     BP[:, i] = BP[:, i] / Pi_norm
+            if k > 0:
+                Pi_norm = np.linalg.norm(P[:, i])
+                Pi_norm = np.max(np.abs(P[:, i]))
+                P[:, i] = P[:, i] / Pi_norm
+                AP[:, i] = AP[:, i] / Pi_norm
+                BP[:, i] = BP[:, i] / Pi_norm
 
             S = np.vstack((X[:, i], W[:, i], P[:, i])).T
             AS = np.vstack((AX[:, i], AW[:, i], AP[:, i])).T
@@ -717,13 +733,13 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
             SBS = S.T @ BS
 
             if k > 0:
-                O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
+                # O, C = eigh(SAS, SBS, subset_by_index=[0, 0])
                 Oa, Ca = sygvx3x3(SAS, SBS)
             else:
-                O, C = eigh(SAS[:2, :2], SBS[:2, :2], subset_by_index=[0, 0])
+                # O, C = eigh(SAS[:2, :2], SBS[:2, :2], subset_by_index=[0, 0])
                 Oa, Ca = sygvx2x2(SAS[:2, :2], SBS[:2, :2])
 
-            ic(np.allclose(np.abs(C[:, 0]), np.abs(Ca[:, 0]), atol=1e-8))
+            # ic(np.allclose(np.abs(C[:, 0]), np.abs(Ca[:, 0]), atol=1e-8))
 
             O = Oa[0]
             C = Ca
@@ -788,22 +804,138 @@ def lobpcg4(A, X, B=None, M=None, tol=1e-8, maxiter=500):
     return O[:m0], X[:, :m0]
 
 
+def lobpcg5(A, X=None, M=None, tol=1e-4, maxiter=500):
+    N = A.shape[0]
+    m0 = 10
+    
+    m1 = int(np.ceil(1 * m0))
+    # m1 = 1
+    m = m0 + m1
+    ic(m0, m1)
+
+    if X is None:
+        X = np.eye(N, m)
+        XAX = A[:m, :m]
+    # C, O = RayleighRitz3(XAX, XBX, m)
+    O, C = eigh(XAX)
+
+    X = X @ C
+    # X = X / np.linalg.norm(X)
+
+    R = A @ X - X @ np.diag(O)
+    P = np.zeros((N, m))
+
+    non_convergent_indx = np.arange(m)
+
+    # M = np.linalg.inv(A)
+    AX = A @ X
+    AP = np.zeros((N, m))
+
+    for k in range(maxiter):
+        W = R
+        AW = A @ W
+        # for i in non_convergent_indx:
+        #     Xi_norm = np.linalg.norm(X[:, i])
+        #     Wi_norm = np.linalg.norm(W[:, i])
+        #     # ic(Xi_norm, Wi_norm)
+        #     # Xi_norm = np.max(np.abs(X[:, i]))
+        #     # Wi_norm = np.max(np.abs(W[:, i]))
+
+        #     W[:, i] = W[:, i] / Wi_norm
+        #     X[:, i] = X[:, i] / Xi_norm
+
+        #     AX[:, i] = AX[:, i] / Xi_norm
+        #     AW[:, i] = AW[:, i] / Wi_norm
+
+        #     if k > 0:
+        #         Pi_norm = np.linalg.norm(P[:, i])
+        #         # Pi_norm = np.max(np.abs(P[:, i]))
+        #         P[:, i] = P[:, i] / Pi_norm
+        #         AP[:, i] = AP[:, i] / Pi_norm
+    
+        if k > 0:
+            # P = P / np.linalg.norm(P)
+            S = np.hstack((X, W, P))
+            AS = np.hstack((AX, AW, AP))
+        else:
+            S = np.hstack((X, W))
+            AS = np.hstack((AX, AW))
+
+        # S = S / np.linalg.norm(S)
+
+        SAS = S.T @ AS
+        SBS = S.T @ S
+        # ic(SBS)
+        # ic(SAS)
+        # ic(S)
+        # ic(AS)
+
+        O, C = eigh(SAS, SBS, subset_by_index=[0, m - 1])
+        # C, O = RayleighRitz3(SAS, SBS, m)
+        # ic(O)
+        # ic(C)
+        X = S @ C
+        AX = AS @ C
+        
+        P = S[:, m:] @ C[m:, :]
+        AP = AS[:, m:] @ C[m:, :]
+        
+        # ic(X)
+        # ic(W)
+        # ic(P)
+        # ic(AX)
+        # ic(AW)
+        # ic(AP)
+        # ic(BW)
+        
+        R = A @ X - X @ np.diag(O)
+        # ic(R)
+
+        res_max = 0
+        non_convergent_indx = []
+
+        for i in range(m0):
+            residual = np.linalg.norm(R[:, i]) / np.linalg.norm(
+                AX[:, i] + X[:, i] * O[i]
+            )
+            # ic(residual)
+            if residual > res_max:
+                res_max = residual
+            if residual > tol:
+                non_convergent_indx.append(i)
+
+        counter = m0 - len(non_convergent_indx)
+        ic(k, counter, res_max)
+
+        if res_max < tol:
+            break
+
+        for i in range(m0, m):
+            residual = np.linalg.norm(R[:, i]) / np.linalg.norm(
+                AX[:, i] + X[:, i] * O[i]
+            )
+            if residual > tol:
+                non_convergent_indx.append(i)
+
+    return O[:m0], X[:, :m0]
+
+
 
 if __name__ == "__main__":
-    n = 10000  # Size of the matrix
-    m = 100  # Number of desired eigenpairs
+    n = 10  # Size of the matrix
+    m = 1  # Number of desired eigenpairs
     np.random.seed(0)
 
-    # A = rand_symm_mat(n=n, eig_low=2, eig_high=10, nrepeat=1)
-    # B = rand_symm_mat(n=n, eig_low=1, eig_high=2, nrepeat=1)
+    A = rand_symm_mat(n=n, eig_low=2, eig_high=10, nrepeat=1)
+    B = rand_symm_mat(n=n, eig_low=1, eig_high=2, nrepeat=1)
 
-    A = np.random.rand(n, n)
-    A = A + A.T
-    A = A + n * np.eye(n)
+    # A = np.random.rand(n, n)
+    # A = A + A.T
+    # A = A + n * np.eye(n)
 
-    B = np.random.rand(n, n)
-    B = B + B.T
-    B = B + n * np.eye(n)
+    # B = np.random.rand(n, n)
+    # B = B + B.T
+    # B = B + n * np.eye(n)
 
     # A = diags([1, 10, 1], [-1, 0, 1], shape=(n, n)).toarray()
     # A = diags(np.arange(2, n + 2), 0, shape=(n, n)).toarray()
@@ -817,6 +949,12 @@ if __name__ == "__main__":
     M = None
     X = np.random.rand(n, m)
     # X = np.eye(n, m)
+    
+    # start = time.time()
+    # lam1, vec1 = lobpcg5(A, X, M=M)
+    # end = time.time()
+    # t5 = end - start
+    # ic("my::lobpcg", t5)
 
     # Call the lobpcg function
     start = time.time()
@@ -825,6 +963,7 @@ if __name__ == "__main__":
     t1 = end - start
     ic("my::lobpcg", t1)
 
+    # exit()
     start = time.time()
     lam2, vec2 = eigh(A, B, subset_by_index=[0, m])
     end = time.time()
@@ -839,6 +978,7 @@ if __name__ == "__main__":
     # lam4, vec4 = eigsh(A, k=m, M=B, sigma=0.1, which="LM")
     # end = time.time()
     # t4 = end - start
+
 
     # Print the resulting eigenvalues and eigenvectors
     print()
