@@ -359,7 +359,7 @@ void sygvx2x2(T* Ap, T* Bp, int m, T* wp, T* vp, bool verbose = true) {
 
 template <typename T>
 bool check_convergence(T* residual, T* is_convergent, const int m, const int k, const int maxiter,
-                      const double tol, bool verbose = true) {
+                       const double tol, bool verbose = true) {
   T max_residual = 0.0;
   int count = 0;
   bool converged = false;
@@ -398,7 +398,7 @@ bool check_convergence(T* residual, T* is_convergent, const int m, const int k, 
 
 template <typename T>
 void lobpcgI(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = nullptr,
-                 double tol = 1e-8, int maxiter = 500, bool verbose = true) {
+             double tol = 1e-8, int maxiter = 500, bool verbose = true) {
   // TODO: Bp is nullptr, use identity matrix
   // TODO: sygv for full matrix eigenvalue problem
   // TODO: if not converged, pick up the result for lowest residual
@@ -678,7 +678,7 @@ void lobpcgI(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = 
 
 template <typename T>
 void lobpcgI_gpu(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = nullptr,
-                     double tol = 1e-8, int maxiter = 500, bool verbose = true) {
+                 double tol = 1e-8, int maxiter = 500, bool verbose = true) {
   // TODO: Bp is nullptr, use identity matrix
   // TODO: sygv for full matrix eigenvalue problem
   // TODO: if not converged, pick up the result for lowest residual
@@ -964,8 +964,8 @@ void lobpcgI_gpu(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* M
     res.sync_host();
 
     /* Check convergence */
-    bool is_converged =
-        check_convergence(res.data(), is_convergent.h_view.data(), m0, k, maxiter, tol, verbose);
+    bool is_converged = check_convergence(res.h_view.data(), is_convergent.h_view.data(), m0, k,
+                                          maxiter, tol, verbose);
 
     if (is_converged) {
       break;

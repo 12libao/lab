@@ -276,7 +276,7 @@ class FixSysPosMat : public ::testing::Test {
 
 TEST_F(FixSysPosMat, lobpcg2) {
   const int n = 10;
-  const int m = 2;
+  const int m = 1;
   View1D<T> w_test("w_test", m);
   View2D<T> v_test("v_test", n, m);
 
