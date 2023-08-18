@@ -32,6 +32,9 @@ double getElapsedTime() {
 }
 
 void reportTimer(const char* msg = "") {
+#ifdef KOKKOS_ENABLE_CUDA
+  Kokkos::fence();
+#endif
   double elapsed = getElapsedTime();
   // Add the current elapsed time to the cumulative time for this message
   cumulativeTimes[std::string(msg)] += elapsed;
