@@ -24,7 +24,12 @@ TimePoint startTime;
 TimePoint endTime;
 std::map<std::string, double> cumulativeTimes;  // Map to store cumulative times
 
-void startTimer(const char* msg) { startTime = Clock::now(); }
+void startTimer(const char* msg) {
+#ifdef KOKKOS_ENABLE_CUDA
+  Kokkos::fence();
+#endif
+  startTime = Clock::now();
+}
 
 double getElapsedTime() {
   Duration d = Clock::now() - startTime;
@@ -95,8 +100,7 @@ void randFill(T* A, int N, T min = -1.0, T max = 1.0) {
 template <typename T>
 void printmat(const char* name, const T* A, int totalRows, int totalCols,
               const std::pair<int, int>& N_interval,
-              const std::pair<int, int>& M_interval = std::make_pair(0, 1),
-              int layout = 0) {
+              const std::pair<int, int>& M_interval = std::make_pair(0, 1), int layout = 0) {
   int N0 = N_interval.first;
   int N1 = N_interval.second;
   int M0 = M_interval.first;
