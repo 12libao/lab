@@ -31,7 +31,7 @@ typedef int I;
 typedef double T;
 
 constexpr I n = 10000;  // dof = 100,000,000 (one billion)
-constexpr I m = 30;
+constexpr I m = 300;
 
 int maxiter = 100;
 double tol = 1e-6;
@@ -274,106 +274,106 @@ class FixSysPosMat : public ::testing::Test {
 //   // printmat("v_test", v_test.data(), n, m);
 // }
 
-TEST_F(FixSysPosMat, lobpcg2) {
-  const int n = 10;
-  const int m = 2;
-  View1D<T> w_test("w_test", m);
-  View2D<T> v_test("v_test", n, m);
-
-  // View2D<T> X("X", n, m);
-
-  tick("linalg::lobpcg2");
-  linalg::lobpcg<T>(A.d_view.data(), B.d_view.data(), n, m, w_test.data(), v_test.data());
-  tock("linalg::lobpcg2");
-
-  // printmat("w", w.data(), m, 1);
-  // printmat("w_test", w_test.data(), m, 1);
-
-  // printmat("v", v.data(), n, m, 1);
-  // printmat("v_test", v_test.data(), n, m);
-}
-
-// TEST_F(RandSysPosMat, lobpcg2) {
+// TEST_F(FixSysPosMat, lobpcg2) {
+//   const int n = 10;
+//   const int m = 1;
 //   View1D<T> w_test("w_test", m);
 //   View2D<T> v_test("v_test", n, m);
 
-//   View2D<T> X("X", n, m);
-//   // View2D<T> Ainv("Ainv", n, n);
-//   // lapackage::inverse(B.h_view.data(), n, Ainv.data());
+//   // View2D<T> X("X", n, m);
 
-//   check();
 //   tick("linalg::lobpcg2");
 //   linalg::lobpcg<T>(A.d_view.data(), B.d_view.data(), n, m, w_test.data(), v_test.data());
 //   tock("linalg::lobpcg2");
 
-//   // View1D<T> w("w", m);
-//   // View2D<T> v("v", n, m);
+//   // printmat("w", w.data(), m, 1);
+//   // printmat("w_test", w_test.data(), m, 1);
 
-//   // tick("linalg::sygvx");
-//   // lapackage::sygvx<T>(A.data(), B.data(), n, m, w.data(), v.data());
-//   // tock("linalg::sygvx");
-
-//   // // compare w to w_test
-//   // for (int i = 0; i < m; i++) {
-//   //   EXPECT_NEAR(w_test(i), w(i), tol);
-//   // }
-
-//   // // compare the abs value for v to v_test, where v_test is in row-major and v
-//   // // is in column-major
-//   // for (int i = 0; i < n; i++) {
-//   //   for (int j = 0; j < m; j++) {
-//   //     EXPECT_NEAR(std::abs(v_test.data()[i * m + j]),
-//   //                 std::abs(v.data()[i + j * n]), tol);
-//   //   }
-//   // }
-
-//   // // printmat("w", w.data(), 1, m, std::make_pair(0, 0),
-//   // //          std::make_pair(0, m - 1));
-//   // // printmat("v", v.data(), n, m, std::make_pair(0, 5),
-//   // //          std::make_pair(m - 1, m - 1), 1);
-
-//   // printmat("w", w_test.data(), 1, m, std::make_pair(0, 0),
-//   //          std::make_pair(0, m - 1));
-//   // printmat("v", v_test.data(), n, m, std::make_pair(0, 5),
-//   //          std::make_pair(m - 1, m - 1));
-
-//   // View2D<T> AB("AB", 2, 4);
-//   // AB(0, 0) = 1;
-//   // AB(0, 1) = 1;
-//   // AB(0, 2) = 2;
-//   // AB(0, 3) = 2;
-//   // AB(1, 0) = 3;
-//   // AB(1, 1) = 3;
-//   // AB(1, 2) = 4;
-//   // AB(1, 3) = 4;
-//   // printmat("AB", AB.data(), 2, 4);
-
-//   // int n1 = 2;
-//   // int n2 = 3;
-//   // int stride1 = 1;
-//   // int stride2 = 2;
-//   // // Kokkos::LayoutStride layout(n1, 1, n2, 2);
-//   // Kokkos::LayoutStride layout(n1, 1, n2, 2);
-//   // Kokkos::View<T**, Kokkos::LayoutStride> a(AB.data(), layout);
-//   // // printmat("a", a.data(), 2, 4);
-//   // printf("a(0, 0) = %f\n", a(0, 0));
-//   // printf("a(0, 1) = %f\n", a(0, 1));
-//   // printf("a(0, 2) = %f\n", a(0, 2));
-//   // printf("a(0, 3) = %f\n", a(0, 3));
-//   // printf("a(1, 0) = %f\n", a(1, 0));
-//   // printf("a(1, 1) = %f\n", a(1, 1));
-//   // printf("a(1, 2) = %f\n", a(1, 2));
-//   // printf("a(1, 3) = %f\n", a(1, 3));
-
-//   // AB(0, 0) = 5;
-//   // printf("a(0, 0) = %f\n", a(0, 0));
-
-//   // printmat("a", a.data(), 8, 1);
-
-//   // auto a1 = Kokkos::subview(a, 1, Kokkos::ALL());
-//   // T sum = KokkosBlas::nrm2_squared(a1);
-//   // printf("sum = %f\n", sum);
+//   // printmat("v", v.data(), n, m, 1);
+//   // printmat("v_test", v_test.data(), n, m);
 // }
+
+TEST_F(RandSysPosMat, lobpcg2) {
+  View1D<T> w_test("w_test", m);
+  View2D<T> v_test("v_test", n, m);
+
+  View2D<T> X("X", n, m);
+  // View2D<T> Ainv("Ainv", n, n);
+  // lapackage::inverse(B.h_view.data(), n, Ainv.data());
+
+  // check();
+  tick("linalg::lobpcg2");
+  linalg::lobpcg<T>(A.d_view.data(), B.d_view.data(), n, m, w_test.data(), v_test.data());
+  tock("linalg::lobpcg2");
+
+  // View1D<T> w("w", m);
+  // View2D<T> v("v", n, m);
+
+  // tick("linalg::sygvx");
+  // lapackage::sygvx<T>(A.data(), B.data(), n, m, w.data(), v.data());
+  // tock("linalg::sygvx");
+
+  // // compare w to w_test
+  // for (int i = 0; i < m; i++) {
+  //   EXPECT_NEAR(w_test(i), w(i), tol);
+  // }
+
+  // // compare the abs value for v to v_test, where v_test is in row-major and v
+  // // is in column-major
+  // for (int i = 0; i < n; i++) {
+  //   for (int j = 0; j < m; j++) {
+  //     EXPECT_NEAR(std::abs(v_test.data()[i * m + j]),
+  //                 std::abs(v.data()[i + j * n]), tol);
+  //   }
+  // }
+
+  // // printmat("w", w.data(), 1, m, std::make_pair(0, 0),
+  // //          std::make_pair(0, m - 1));
+  // // printmat("v", v.data(), n, m, std::make_pair(0, 5),
+  // //          std::make_pair(m - 1, m - 1), 1);
+
+  // printmat("w", w_test.data(), 1, m, std::make_pair(0, 0),
+  //          std::make_pair(0, m - 1));
+  // printmat("v", v_test.data(), n, m, std::make_pair(0, 5),
+  //          std::make_pair(m - 1, m - 1));
+
+  // View2D<T> AB("AB", 2, 4);
+  // AB(0, 0) = 1;
+  // AB(0, 1) = 1;
+  // AB(0, 2) = 2;
+  // AB(0, 3) = 2;
+  // AB(1, 0) = 3;
+  // AB(1, 1) = 3;
+  // AB(1, 2) = 4;
+  // AB(1, 3) = 4;
+  // printmat("AB", AB.data(), 2, 4);
+
+  // int n1 = 2;
+  // int n2 = 3;
+  // int stride1 = 1;
+  // int stride2 = 2;
+  // // Kokkos::LayoutStride layout(n1, 1, n2, 2);
+  // Kokkos::LayoutStride layout(n1, 1, n2, 2);
+  // Kokkos::View<T**, Kokkos::LayoutStride> a(AB.data(), layout);
+  // // printmat("a", a.data(), 2, 4);
+  // printf("a(0, 0) = %f\n", a(0, 0));
+  // printf("a(0, 1) = %f\n", a(0, 1));
+  // printf("a(0, 2) = %f\n", a(0, 2));
+  // printf("a(0, 3) = %f\n", a(0, 3));
+  // printf("a(1, 0) = %f\n", a(1, 0));
+  // printf("a(1, 1) = %f\n", a(1, 1));
+  // printf("a(1, 2) = %f\n", a(1, 2));
+  // printf("a(1, 3) = %f\n", a(1, 3));
+
+  // AB(0, 0) = 5;
+  // printf("a(0, 0) = %f\n", a(0, 0));
+
+  // printmat("a", a.data(), 8, 1);
+
+  // auto a1 = Kokkos::subview(a, 1, Kokkos::ALL());
+  // T sum = KokkosBlas::nrm2_squared(a1);
+  // printf("sum = %f\n", sum);
+}
 
 int main(int argc, char** argv) {
   Kokkos::initialize(argc, argv);
