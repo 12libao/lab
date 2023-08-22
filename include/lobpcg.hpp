@@ -1106,7 +1106,7 @@ void lobpcgII(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp =
     View2D<T> X0 = X;
     KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);         // AX = A * X
     KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);         // BX = B * X
-    Kokkos::deep_copy(tmp, X_AX_BX);                        // tmp = X_AX_BX
+    tmp = X_AX_BX;
     KokkosBlas::gemm("N", "T", 1.0, tmp, v, 0.0, X_AX_BX);  // X = X * v
   }
 
@@ -1147,7 +1147,7 @@ void lobpcgII(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp =
     if (Mp != nullptr) {                              // with preconditioning, normally M = A^-1
       KokkosBlas::gemm("N", "N", 1.0, M, R, 0.0, W);  // W = M * R
     } else {                                          // without preconditioning
-      Kokkos::deep_copy(W, R);
+      Kokkos::deep_copy(W, R);  // since R not stored in contiguous memory, use deep_copy
     }
 
     if (k == 1) {
@@ -1235,11 +1235,10 @@ void lobpcgII(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp =
                         v_outer.data());
 
     /* [X, AX, BX, P, AP, BP] = [X, AX, BX, P, AP, BP] * v */
-    deep_copy(tmp, X_AX_BX);
+    tmp = X_AX_BX;  // since X_AX_BX stored in contigous memory, otherwise need to use deep_copy
     KokkosBlas::gemm("N", "T", 1.0, tmp, v_outer, 0.0, X_AX_BX);
-    deep_copy(tmp, P_AP_BP);
+    tmp = P_AP_BP;
     KokkosBlas::gemm("N", "T", 1.0, tmp, v_outer, 0.0, P_AP_BP);
-
     /* R = AX - BX * w, R_ = AX + BX * w */
     compute_residual(AX, BX, w_outer, n, m, R, R_);
 
@@ -1371,7 +1370,7 @@ void lobpcgII_gpu(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* 
     View2D<T> X0 = X;
     KokkosBlas::gemm("N", "N", 1.0, A, X, 0.0, AX);                // AX = A * X
     KokkosBlas::gemm("N", "N", 1.0, B, X, 0.0, BX);                // BX = B * X
-    Kokkos::deep_copy(tmp, X_AX_BX);                               // tmp = X_AX_BX
+    tmp = X_AX_BX;
     KokkosBlas::gemm("N", "N", 1.0, tmp, v.d_view, 0.0, X_AX_BX);  // X = X * v
   }
 
@@ -1417,7 +1416,7 @@ void lobpcgII_gpu(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* 
     if (Mp != nullptr) {                              // with preconditioning, normally M = A^-1
       KokkosBlas::gemm("N", "N", 1.0, M, R, 0.0, W);  // W = M * R
     } else {                                          // without preconditioning
-      Kokkos::deep_copy(W, R);
+      Kokkos::deep_copy(W, R);  // since R not stored in contiguous memory, use deep_copy
     }
 
     if (k == 1) {
@@ -1571,9 +1570,9 @@ void lobpcgII_gpu(T* Ap, T* Bp, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* 
     v_outer.sync_device();
 
     /* Update: [X, AX, BX, P, AP, BP] = [X, AX, BX, P, AP, BP] * v */
-    deep_copy(tmp, X_AX_BX);
+    tmp = X_AX_BX;  // since X_AX_BX stored in contigous memory, otherwise need to use deep_copy
     KokkosBlas::gemm("N", "N", 1.0, tmp, v_outer.d_view, 0.0, X_AX_BX);
-    deep_copy(tmp, P_AP_BP);
+    tmp = P_AP_BP;
     KokkosBlas::gemm("N", "N", 1.0, tmp, v_outer.d_view, 0.0, P_AP_BP);
 
     /* R = AX - BX * w, R_ = AX + BX * w */
