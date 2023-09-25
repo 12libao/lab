@@ -4,9 +4,10 @@
 
 #include <KokkosBlas.hpp>
 #include <KokkosBlas1_iamax.hpp>
-#include <Kokkos_DualView.hpp>
+#include <KokkosSparse_gmres.hpp>
 #include <cstdlib>
 
+#include "KokkosSparse_spgemm.hpp"
 #include "lapackage.hpp"
 #include "utils.hpp"
 
@@ -477,9 +478,9 @@ bool check_convergence(T* residual, T* is_convergent, const int m, const int k, 
   return converged;
 }
 
-template <typename T>
-void lobpcgII(T* Ax,T* Ap,T* Aj, T* Bx, T* Bp,T* Bj, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = nullptr,
-              double tol = 1e-8, int maxiter = 500, bool verbose = true) {
+template <typename T, typename I>
+void lobpcgII(T* Ax, I* Ap, I* Aj, T* Bx, I* Bp, I* Bj, int n, int m, T* wp, T* vp, T* Xp = nullptr,
+              T* Mp = nullptr, double tol = 1e-8, int maxiter = 500, bool verbose = true) {
   // TODO: Bp is nullptr, use identity matrix
   // TODO: sygv for full matrix eigenvalue problem
   // TODO: if not converged, pick up the result for lowest residual
@@ -499,8 +500,8 @@ void lobpcgII(T* Ax,T* Ap,T* Aj, T* Bx, T* Bp,T* Bj, int n, int m, T* wp, T* vp,
         n, m0, m - m0);
   }
 
-  View2D<T> A(Ap, n, n);
-  View2D<T> B(Bp, n, n);
+  View2D<T> A(Ax, n, n);
+  View2D<T> B(Bx, n, n);
 
   /* store in vstack [ X | AX | BX ], [ P | AP | BP ], [ W | AW | BW ] */
   View2D<T> X_AX_BX("vstack: [ X | AX | BX ]", 3 * n, m);
@@ -722,9 +723,9 @@ void lobpcgII(T* Ax,T* Ap,T* Aj, T* Bx, T* Bp,T* Bj, int n, int m, T* wp, T* vp,
   Kokkos::deep_copy(w_result, w_m0);
 }
 
-template <typename T>
-void lobpcg(T* Ax,T* Ap,T* Aj, T* Bx, T* Bp,T* Bj, int n, int m, T* wp, T* vp, T* Xp = nullptr, T* Mp = nullptr,double tol = 1e-8, int maxiter = 500, bool verbose = true) {
-
+template <typename T, typename I>
+void lobpcg(T* Ax, I* Ap, I* Aj, T* Bx, I* Bp, I* Bj, int n, int m, T* wp, T* vp, T* Xp = nullptr,
+            T* Mp = nullptr, double tol = 1e-8, int maxiter = 500, bool verbose = true) {
 #ifdef KOKKOS_ENABLE_CUDA
   printf("\033[1;31mWarning\033[0m: lobpcg_sparse is not supported on GPU yet.\n");
 #else
