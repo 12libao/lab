@@ -162,9 +162,9 @@ void printmat(const char* name, T* A, int N = 5, int M = 5, int layout = 0) {
     printf("  |");
     for (int j = 0; j < M; ++j) {
       if (layout == 0)
-        printf("%12.8f ", A[i * M + j]);
+        printf("%12.8f ", (double)A[i * M + j]);
       else if (layout == 1)
-        printf("%12.8f ", A[i + j * N]);
+        printf("%12.8f ", (double)A[i + j * N]);
     }
     printf("|\n");
   }
