@@ -117,14 +117,36 @@ TEST_F(FixSysPosMat, testsparse) {
   View2D<T> B0(&Bx_data[0], n, n);
   View1D<T> w(&w_data[0], n);
 
+  // compute Aj and Ap for n x m dense matrix
+  m = 10;
+  View1D<I> Aj("Aj", n * m);
+  View1D<I> Ap("Ap", n + 1);
+  for (size_t i = 0; i < n; ++i) {
+    Ap(i) = i * m;
+    for (size_t j = 0; j < m; ++j) {
+      Aj(i * m + j) = j;
+    }
+  }
+  Ap(n) = n * m;
+
+  View1D<I> Bp = Ap;
+  View1D<I> Bj = Aj;
+
   // make kernel handle and set the options for GMRES
   using EXSP = Kokkos::DefaultExecutionSpace;
   using MESP = typename EXSP::memory_space;
   using crsMat_t = KokkosSparse::CrsMatrix<T, I, EXSP, void, I>;
   using KernelHandle = KokkosKernels::Experimental::KokkosKernelsHandle<I, I, T, EXSP, MESP, MESP>;
 
-  crsMat_t A("A", n, n, Ap_data[n], &Ax_data[0], &Ap_data[0], &Aj_data[0]);
-  crsMat_t B("B", n, n, Bp_data[n], &Bx_data[0], &Bp_data[0], &Bj_data[0]);
+  crsMat_t A("A", n, n, Ap(n), nullptr, Ap.data(), Aj.data());
+  crsMat_t B("B", n, n, Bp(n), &Bx_data[0], Bp.data(), Bj.data());
+
+  // allocate the values for A
+  for (size_t i = 0; i < n; ++i) {
+    for (size_t j = 0; j < m; ++j) {
+      A.values(i * m + j) = A0(i, j);
+    }
+  }
 
   // check the matrix
   ASSERT_EQ(A.numRows(), n);
@@ -137,10 +159,11 @@ TEST_F(FixSysPosMat, testsparse) {
 
   // compute A * w
   View1D<T> Aw("Aw", n);
-  KokkosSparse::spmv("N", 1.0, A, w, 0.0, Aw);
-
   View1D<T> Aw2("Aw", n);
+
+  KokkosSparse::spmv("N", 1.0, A, w, 0.0, Aw);
   KokkosBlas::gemv("N", 1.0, A0, w, 0.0, Aw2);
+
   for (size_t i = 0; i < n; ++i) {
     EXPECT_NEAR(Aw(i), Aw2(i), 1e-8);
   }

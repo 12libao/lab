@@ -478,6 +478,33 @@ bool check_convergence(T* residual, T* is_convergent, const int m, const int k, 
   return converged;
 }
 
+/**
+ * convert dense matrix to CRS format
+ *
+ * Input:
+ *  n: number of rows
+ *  m: number of columns
+ *
+ * Output:
+ * Ap: pointer for row pointer
+ * Aj: pointer for column index
+ *
+ * Note:
+ *   ignore zero elements
+ *   Ap = [0, m, 2m, ..., nm]
+ *   Aj = [0, 1, 2, ..., m-1, 0, 1, 2, ..., m-1, ..., 0, 1, 2, ..., m-1]
+ */
+template <typename I>
+void denseToCrs(int n, int m, I* Ap, I* Aj) {
+  for (int i = 0; i < n; ++i) {
+    Ap[i] = i * m;
+    for (int j = 0; j < m; ++j) {
+      Aj[i * m + j] = j;
+    }
+  }
+  Ap[n] = n * m;
+}
+
 template <typename T, typename I>
 void lobpcgII(T* Ax, I* Ap, I* Aj, T* Bx, I* Bp, I* Bj, int n, int m, T* wp, T* vp, T* Xp = nullptr,
               T* Mp = nullptr, double tol = 1e-8, int maxiter = 500, bool verbose = true) {
@@ -499,6 +526,25 @@ void lobpcgII(T* Ax, I* Ap, I* Aj, T* Bx, I* Bp, I* Bj, int n, int m, T* wp, T* 
         "\033[32m%d\033[0m\n",
         n, m0, m - m0);
   }
+
+  // make kernel handle and set the options for GMRES
+  using EXSP = Kokkos::DefaultExecutionSpace;
+  using MESP = typename EXSP::memory_space;
+  using crsMat_t = KokkosSparse::CrsMatrix<T, I, EXSP, void, I>;
+  using KernelHandle = KokkosKernels::Experimental::KokkosKernelsHandle<I, I, T, EXSP, MESP, MESP>;
+
+  std::string alg("SPGEMM_KK_MEMSPEED");
+
+  crsMat_t Acsr("Acrsmat", n, n, Ap[n], Ax, Ap, Aj);
+  crsMat_t Bcsr("Bcrsmat", n, n, Bp[n], Bx, Bp, Bj);
+
+  View1D<I> rowPtr("row pointer", n + 1);
+  View1D<I> colInd("column index", n * m);
+
+  denseToCrs<I>(n, m, rowPtr.data(), colInd.data());
+
+  crsMat_t Pcsr("Pcrsmat", n, m, n * m, nullptr, rowPtr.data(), colInd.data());
+  crsMat_t Wcsr("Wcrsmat", n, m, n * m, nullptr, rowPtr.data(), colInd.data());
 
   View2D<T> A(Ax, n, n);
   View2D<T> B(Bx, n, n);
@@ -533,8 +579,8 @@ void lobpcgII(T* Ax, I* Ap, I* Aj, T* Bx, I* Bp, I* Bj, int n, int m, T* wp, T* 
     Kokkos::parallel_for(
         "lobpcg::set: XAX0, XBX0", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {m, m}),
         KOKKOS_LAMBDA(int i, int j) {
-          XAX0(i, j) = A(i, j);  // X = eye(n, m) -> XAX0 = A[:m, :m]
-          XBX0(i, j) = B(i, j);  // X = eye(n, m) -> XBX0 = B[:m, :m]
+          XAX0(i, j) = Ax[i * n + j];  // X = eye(n, m) -> XAX0 = A[:m, :m]
+          XBX0(i, j) = Bx[i * n + j];  // X = eye(n, m) -> XBX0 = B[:m, :m]
         });
   } else {
     X = View2D<T>(Xp, n, m);
@@ -610,12 +656,62 @@ void lobpcgII(T* Ax, I* Ap, I* Aj, T* Bx, I* Bp, I* Bj, int n, int m, T* wp, T* 
     }
 
     if (k == 1) {
-      KokkosBlas::gemm("N", "N", 1.0, A, P, 0.0, AP);
-      KokkosBlas::gemm("N", "N", 1.0, B, P, 0.0, BP);
+      crsMat_t APcsr;
+      crsMat_t BPcsr;
+
+      KernelHandle kh_AP;
+      KernelHandle kh_BP;
+
+      kh_AP.create_spgemm_handle(KokkosSparse::StringToSPGEMMAlgorithm(alg));
+      kh_BP.create_spgemm_handle(KokkosSparse::StringToSPGEMMAlgorithm(alg));
+
+      Kokkos::parallel_for(
+          "copy P to Pcsr.values", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {n, m}),
+          KOKKOS_LAMBDA(int i, int j) { Pcsr.values[i * m + j] = P(i, j); });
+
+      KokkosSparse::spgemm_symbolic(kh_AP, Acsr, 0, Pcsr, 0, APcsr);
+      KokkosSparse::spgemm_symbolic(kh_BP, Bcsr, 0, Pcsr, 0, BPcsr);
+      KokkosSparse::spgemm_numeric(kh_AP, Acsr, 0, Pcsr, 0, APcsr);
+      KokkosSparse::spgemm_numeric(kh_BP, Bcsr, 0, Pcsr, 0, BPcsr);
+
+      Kokkos::parallel_for(
+          "copy APcsr.values and BPcsr.values to AP and BP",
+          Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {n, m}), KOKKOS_LAMBDA(int i, int j) {
+            AP(i, j) = APcsr.values[i * m + j];
+            BP(i, j) = BPcsr.values[i * m + j];
+          });
+
+      kh_AP.destroy_spgemm_handle();
+      kh_BP.destroy_spgemm_handle();
     }
 
-    KokkosBlas::gemm("N", "N", 1.0, A, W, 0.0, AW);
-    KokkosBlas::gemm("N", "N", 1.0, B, W, 0.0, BW);
+    crsMat_t AWcsr;
+    crsMat_t BWcsr;
+
+    KernelHandle kh_AW;
+    KernelHandle kh_BW;
+
+    kh_AW.create_spgemm_handle(KokkosSparse::StringToSPGEMMAlgorithm(alg));
+    kh_BW.create_spgemm_handle(KokkosSparse::StringToSPGEMMAlgorithm(alg));
+
+    Kokkos::parallel_for(
+        "copy W to Wcsr.values", Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {n, m}),
+        KOKKOS_LAMBDA(int i, int j) { Wcsr.values[i * m + j] = W(i, j); });
+
+    KokkosSparse::spgemm_symbolic(kh_AW, Acsr, 0, Wcsr, 0, AWcsr);
+    KokkosSparse::spgemm_symbolic(kh_BW, Bcsr, 0, Wcsr, 0, BWcsr);
+    KokkosSparse::spgemm_numeric(kh_AW, Acsr, 0, Wcsr, 0, AWcsr);
+    KokkosSparse::spgemm_numeric(kh_BW, Bcsr, 0, Wcsr, 0, BWcsr);
+
+    Kokkos::parallel_for(
+        "copy AWcsr.values and BWcsr.values to AW and BW",
+        Kokkos::MDRangePolicy<Kokkos::Rank<2>>({0, 0}, {n, m}), KOKKOS_LAMBDA(int i, int j) {
+          AW(i, j) = AWcsr.values[i * m + j];
+          BW(i, j) = BWcsr.values[i * m + j];
+        });
+
+    kh_AW.destroy_spgemm_handle();
+    kh_BW.destroy_spgemm_handle();
 
     /* Perform Rayleigh-Ritz procedure */
     /* Normalize [Xi, Wi, Pi] and store them in contiguous memory for each sub-block */
