@@ -6,6 +6,7 @@ from scipy.linalg import eigh, eigvalsh, qr, solve_triangular
 from scipy.sparse import diags, random, spdiags
 import scipy.sparse.linalg as linalg
 from scipy.sparse.linalg import eigs, eigsh, inv
+from scipy import sparse
 
 
 def rand_symm_mat(n=10, eig_low=0.1, eig_high=100.0, nrepeat=1):
@@ -931,11 +932,30 @@ if __name__ == "__main__":
 
     # A = np.random.rand(n, n)
     # A = A + A.T
-    # A = A + n * np.eye(n)
+    # # A = A + n * np.eye(n)
 
     # B = np.random.rand(n, n)
     # B = B + B.T
     # B = B + n * np.eye(n)
+
+    A = sparse.csr_matrix(A)
+    ic(A.data, A.indices, A.indptr)
+    B = sparse.csr_matrix(B)
+    ic(B.data, B.indices, B.indptr)
+    
+    # generate a sparse matrix with size n
+    n = 10000
+    A = sparse.random(n, n, density=0.1, format="csr")
+    b = np.random.rand(n)
+    t0 = time.time()
+    x = sparse.linalg.spsolve(A, b)
+    t1 = time.time()
+    ic(t1 - t0)
+    exit()
+    
+    # check is A, B is positive definite
+    ic(np.all(np.linalg.eigvals(A) > 0))
+    ic(np.all(np.linalg.eigvals(B) > 0))
 
     # A = diags([1, 10, 1], [-1, 0, 1], shape=(n, n)).toarray()
     # A = diags(np.arange(2, n + 2), 0, shape=(n, n)).toarray()
@@ -958,7 +978,7 @@ if __name__ == "__main__":
 
     # Call the lobpcg function
     start = time.time()
-    lam1, vec1 = lobpcg3(A, X, B, M=M)
+    lam1, vec1 = lobpcg4(A, X, B, M=M)
     end = time.time()
     t1 = end - start
     ic("my::lobpcg", t1)

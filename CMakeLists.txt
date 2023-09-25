@@ -71,7 +71,9 @@ if(CMAKE_BUILD_TYPE MATCHES Test)
     # Add the test executable and link with Google Test
     add_executable(runUnitTest 
         # test/test_lapackage.cpp
-        test/test_lobpcg.cpp
+        # test/test_lobpcg.cpp
+        test/test_lobpcgSparse.cpp
+        # test/test_sparse.cpp
         )
 
     target_link_libraries(runUnitTest 
