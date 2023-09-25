@@ -35,7 +35,6 @@ T Bx_ans[4] = {3, 1, 2, 1};
 I Bp_ans[5] = {0, 2, 3, 3, 4};
 I Bj_ans[4] = {0, 2, 1, 3};
 
-
 TEST(CooToCsrTest, coo_to_csr) {
   std::vector<T> Ax(Ax0, Ax0 + 7);
   std::vector<I> Ai(Ai0, Ai0 + 7);
@@ -46,6 +45,10 @@ TEST(CooToCsrTest, coo_to_csr) {
   std::vector<I> Bj;
 
   std::tie(Bx, Bp, Bj) = coo_to_csr<T, I>(Ax, Ai, Aj);
+
+  printmat("Bx", Bx.data(), 1, 4);
+  printmat("Bp", Bp.data(), 1, 5);
+  printmat("Bj", Bj.data(), 1, 4);
 
   ASSERT_EQ(Bx.size(), 4);
   ASSERT_EQ(Bp.size(), 5);
@@ -64,7 +67,7 @@ TEST(CooToCsrTest, coo_to_csr) {
   }
 }
 
-TEST(CooToCsrTest, cooToCsr){
+TEST(CooToCsrTest, cooToCsr) {
   COOMatrix<T, I> coo;
   coo.rowIndices = Kokkos::View<int*>(&Ai0[0], std::size(Ai0));
   coo.colIndices = Kokkos::View<int*>(&Aj0[0], std::size(Aj0));
@@ -91,8 +94,8 @@ TEST(CooToCsrTest, cooToCsr){
 TEST(SpeedTest, coo_to_csr) {
   // random generated sparse matrix with size 1000000 x 1000000
   // with 10000000 non-zero elements
-  I n = 1000000;
-  I nnz = 10000000;
+  I n = 640000;
+  I nnz = 20403264;
 
   std::vector<T> Ax(nnz);
   std::vector<I> Ai(nnz);
@@ -110,15 +113,15 @@ TEST(SpeedTest, coo_to_csr) {
   std::vector<I> Bj;
 
   tick("std::vector");
-  std::tie(Bx, Bp, Bj) = coo_to_csr<T, I>(Ax, Ai, Aj);
+  std::tie(Bx, Bp, Bj) = coo_to_csr<T, I>(Ax, Ai, Aj, n);
   tock("std::vector");
 }
 
 TEST(SpeedTest, cooToCsr) {
   // random generated sparse matrix with size 1000000 x 1000000
   // with 10000000 non-zero elements
-  I n = 1000000;
-  I nnz = 10000000;
+  I n = 640000;
+  I nnz = 20403264;
 
   std::vector<T> Ax(nnz);
   std::vector<I> Ai(nnz);
@@ -132,6 +135,7 @@ TEST(SpeedTest, cooToCsr) {
   }
 
   COOMatrix<T, I> coo;
+  coo.numRows = n;
   coo.rowIndices = Kokkos::View<int*>(&Ai[0], std::size(Ai));
   coo.colIndices = Kokkos::View<int*>(&Aj[0], std::size(Aj));
   coo.values = Kokkos::View<double*>(&Ax[0], std::size(Ax));

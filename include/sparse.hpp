@@ -122,22 +122,16 @@ void cooToCsr(const COOMatrix<T, I>& coo, CSRMatrix<T, I>& csr) {
         }
       });
 
-  // Create a view for the keys
-  Kokkos::View<std::pair<I, I>*> keys("keys", coo_dict.size());
-  size_t i = 0;
-  for (const auto& entry : coo_dict) {
-    keys(i) = entry.first;
-    ++i;
-  }
-
   // Create views for Bj and Bx
-  Kokkos::View<I*> Bj("Bj", keys.extent(0));
-  Kokkos::View<T*> Bx("Bx", keys.extent(0));
+  Kokkos::View<I*> Bj("Bj", coo_dict.size());
+  Kokkos::View<T*> Bx("Bx", coo_dict.size());
 
   // Fill Bj and Bx
-  for (size_t i = 0; i < keys.extent(0); ++i) {
-    Bj(i) = keys(i).second;
-    Bx(i) = coo_dict[keys(i)];
+  size_t i = 0;
+  for (const auto& entry : coo_dict) {
+    Bj(i) = entry.first.second;
+    Bx(i) = entry.second;
+    i++;
   }
 
   // Assign the views to the CSR matrix
@@ -166,21 +160,24 @@ void cooToCsr(const COOMatrix<T, I>& coo, CSRMatrix<T, I>& csr) {
 template <typename T, typename I>
 std::tuple<std::vector<T>, std::vector<I>, std::vector<I>> coo_to_csr(const std::vector<T>& Ax,
                                                                       const std::vector<I>& Ai,
-                                                                      const std::vector<I>& Aj) {
-  // Determine the number of rows and columns
-  I num_rows = *std::max_element(Ai.begin(), Ai.end()) + 1;
+                                                                      const std::vector<I>& Aj,
+                                                                      I nrows = 0) {
+  if (nrows == 0) {
+    nrows = *std::max_element(Ai.begin(), Ai.end()) + 1;
+  }
 
   // Create a dictionary to store (row, col) pairs as keys and sum Bx as Bx
   std::map<std::pair<I, I>, T> coo_dict;
 
   // Sum duplicate entries and compute the number of non-zero elements in each row
-  std::vector<I> row_counts(num_rows, 0);
+  std::vector<I> row_counts(nrows, 0);
   row_counts.reserve(Ax.size());
 
   for (size_t i = 0; i < Ax.size(); ++i) {
     I row = Ai[i];
     I col = Aj[i];
     std::pair<I, I> key = std::make_pair(row, col);
+
     if (coo_dict.find(key) != coo_dict.end()) {
       coo_dict[key] += Ax[i];
     } else {
@@ -190,27 +187,22 @@ std::tuple<std::vector<T>, std::vector<I>, std::vector<I>> coo_to_csr(const std:
   }
 
   // Compute the Bp array
-  std::vector<I> Bp(num_rows + 1, 0);
-  I cumulative_sum = 0;
-  for (I i = 0; i < num_rows; ++i) {
-    cumulative_sum += row_counts[i];
-    Bp[i + 1] = cumulative_sum;
-  }
-
-  std::vector<std::pair<I, I>> keys;
-  keys.reserve(coo_dict.size());
-  for (const auto& entry : coo_dict) {
-    keys.push_back(entry.first);
+  std::vector<I> Bp(nrows + 1, 0);
+  I cumsum = 0;
+  for (I i = 0; i < nrows; ++i) {
+    cumsum += row_counts[i];
+    Bp[i + 1] = cumsum;
   }
 
   std::vector<I> Bj;
   std::vector<T> Bx;
-  Bj.reserve(keys.size());
-  Bx.reserve(keys.size());
+  Bj.reserve(coo_dict.size());
+  Bx.reserve(coo_dict.size());
 
-  for (const auto& key : keys) {
-    Bj.emplace_back(key.second);
-    Bx.emplace_back(coo_dict[key]);
+  // Fill Bj and Bx
+  for (const auto& entry : coo_dict) {
+    Bj.push_back(entry.first.second);
+    Bx.push_back(entry.second);
   }
 
   return std::make_tuple(Bx, Bp, Bj);
